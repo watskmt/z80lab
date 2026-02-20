@@ -29,45 +29,153 @@ const REGS_MAP: Record<string, number> = {
 };
 const REGS_LIST = ['B', 'C', 'D', 'E', 'H', 'L', '(HL)', 'A'];
 
+const S_FLAG = 0x80;
+const Z_FLAG = 0x40;
+const H_FLAG = 0x10;
+const PV_FLAG = 0x04;
+const N_FLAG = 0x02;
+const C_FLAG = 0x01;
+
+const SZP_TABLE = new Uint8Array(256);
+for (let i = 0; i < 256; i++) {
+  let f = i & 0x80;
+  if (i === 0) f |= Z_FLAG;
+  let cnt = 0;
+  for (let j = 0; j < 8; j++) if ((i >> j) & 1) cnt++;
+  if (cnt % 2 === 0) f |= PV_FLAG;
+  SZP_TABLE[i] = f;
+}
+
 // ===== アセンブラ =====
 const assembleInstruction = (text: string, currentAddr: number): number[] => {
   const s = text.toUpperCase().trim();
   if (!s || s === '-' || s.startsWith('DB')) return [];
 
-  if (s.startsWith('JP ')) {
-    const isNZ = s.includes('NZ,');
-    const targetPart = isNZ ? s.split('NZ,')[1] : s.split('JP ')[1];
-    const addr = parseInt(targetPart.trim(), 16) || 0;
-    return [isNZ ? 0xc2 : 0xc3, addr & 0xff, (addr >> 8) & 0xff];
+  const compact = s.replace(/\s+/g, '');
+
+  // 1-byte opcodes (Simplified/Greedy)
+  if (compact === 'NOP') return [0x00];
+  if (compact === 'HALT') return [0x76];
+  if (compact === 'RET') return [0xc9];
+  if (compact === 'EXDE,HL') return [0xeb];
+  if (compact === 'DI') return [0xf3];
+  if (compact === 'EI') return [0xfb];
+  if (compact === 'RLCA') return [0x07];
+  if (compact === 'RRCA') return [0x0f];
+  if (compact === 'RLA') return [0x17];
+  if (compact === 'RRA') return [0x1f];
+  if (compact === 'DAA') return [0x27];
+  if (compact === 'CPL') return [0x2f];
+  if (compact === 'SCF') return [0x37];
+  if (compact === 'CCF') return [0x3f];
+
+  // LD r, r'
+  const ldRegMatch = compact.match(/^LD([A-EHL]|B|C|D|E|H|L|A),([A-EHL]|B|C|D|E|H|L|A)$/);
+  if (ldRegMatch) {
+    const d = REGS_MAP[ldRegMatch[1]];
+    const s = REGS_MAP[ldRegMatch[2]];
+    return [0x40 | (d << 3) | s];
   }
 
-  if (s.startsWith('JR ') || s.startsWith('DJNZ ')) {
-    const isDJNZ = s.startsWith('DJNZ');
-    const targetPart = isDJNZ ? s.split('DJNZ ')[1] : s.split('JR ')[1];
-    const targetAddr = parseInt(targetPart.trim(), 16) || 0;
+  // LD r, n
+  const ldRnMatch = compact.match(/^LD([A-EHL]|B|C|D|E|H|L|A),([0-9A-F]+)H?$/);
+  if (ldRnMatch) {
+    const r = REGS_MAP[ldRnMatch[1]];
+    const n = parseInt(ldRnMatch[2], 16);
+    return [0x06 | (r << 3), n & 0xff];
+  }
+
+  // INC/DEC r
+  const incDecMatch = compact.match(/^(INC|DEC)([A-EHL]|B|C|D|E|H|L|A)$/);
+  if (incDecMatch) {
+    const isInc = incDecMatch[1] === 'INC';
+    const r = REGS_MAP[incDecMatch[2]];
+    return [isInc ? 0x04 | (r << 3) : 0x05 | (r << 3)];
+  }
+
+  // ADD A, r / SUB r / etc
+  const aluMatch = compact.match(/^(ADD|ADC|SUB|SBC|AND|XOR|OR|CP)(?:A,)?([A-EHL]|B|C|D|E|H|L|A)$/);
+  if (aluMatch) {
+    const ops = ['ADD', 'ADC', 'SUB', 'SBC', 'AND', 'XOR', 'OR', 'CP'];
+    const opIdx = ops.indexOf(aluMatch[1]);
+    const r = REGS_MAP[aluMatch[2]];
+    return [0x80 | (opIdx << 3) | r];
+  }
+
+  // LD HL, nn / LD BC, nn / LD DE, nn / LD SP, nn
+  const ldRRnnMatch = compact.match(/^LD(HL|BC|DE|SP),([0-9A-F]+)H?$/);
+  if (ldRRnnMatch) {
+    const rr = ldRRnnMatch[1];
+    const nn = parseInt(ldRRnnMatch[2], 16);
+    const op = rr === 'BC' ? 0x01 : rr === 'DE' ? 0x11 : rr === 'HL' ? 0x21 : 0x31;
+    return [op, nn & 0xff, (nn >> 8) & 0xff];
+  }
+
+  // JP nn / CALL nn
+  const jpCallMatch = compact.match(/^(JP|CALL)([0-9A-F]+)H?$/);
+  if (jpCallMatch) {
+    const isCall = jpCallMatch[1] === 'CALL';
+    const nn = parseInt(jpCallMatch[2], 16);
+    return [isCall ? 0xcd : 0xc3, nn & 0xff, (nn >> 8) & 0xff];
+  }
+
+  // JR e / DJNZ e
+  const jrMatch = compact.match(/^(JR|DJNZ)([0-9A-F]+)H?$/);
+  if (jrMatch) {
+    const isDJNZ = jrMatch[1] === 'DJNZ';
+    const targetAddr = parseInt(jrMatch[2], 16);
     const offset = (targetAddr - (currentAddr + 2)) & 0xff;
     return [isDJNZ ? 0x10 : 0x18, offset];
   }
 
-  const compact = s.replace(/\s+/g, '');
-  const ldRegMatch = compact.match(/^LD([A-EHL]),([A-EHL])$/);
-  if (ldRegMatch)
-    return [0x40 | (REGS_MAP[ldRegMatch[1]] << 3) | REGS_MAP[ldRegMatch[2]]];
-  if (compact.startsWith('LDA,'))
-    return [0x3e, parseInt(compact.split(',')[1], 16) || 0];
-  if (compact.startsWith('LDB,'))
-    return [0x06, parseInt(compact.split(',')[1], 16) || 0];
-  if (compact === 'DECA') return [0x3d];
-  if (compact.startsWith('LDH,'))
-    return [0x26, parseInt(compact.split(',')[1], 16) || 0];
-  if (compact.startsWith('LDL,'))
-    return [0x2e, parseInt(compact.split(',')[1], 16) || 0];
-  if (compact === 'LD(HL),A') return [0x77];
-  if (compact.startsWith('LD(') && compact.endsWith('),A')) {
-    const addr = parseInt(compact.match(/\(([^)]+)\)/)?.[1] || '0', 16);
-    return [0x32, addr & 0xff, (addr >> 8) & 0xff];
+  // Conditional Jumps
+  const jpCondMatch = compact.match(/^JP(NZ|Z|NC|C),([0-9A-F]+)H?$/);
+  if (jpCondMatch) {
+    const conds = ['NZ', 'Z', 'NC', 'C'];
+    const idx = conds.indexOf(jpCondMatch[1]);
+    const nn = parseInt(jpCondMatch[2], 16);
+    return [0xc2 | (idx << 3), nn & 0xff, (nn >> 8) & 0xff];
   }
-  if (compact === 'NOP') return [0x00];
+
+  // LD (HL), A / LD A, (HL)
+  if (compact === 'LD(HL),A') return [0x77];
+  if (compact === 'LDA,(HL)') return [0x7e];
+
+  // LD (nn), A / LD A, (nn)
+  const ldMemAMatch = compact.match(/^LD\(([0-9A-F]+)H?\),A$/);
+  if (ldMemAMatch) {
+    const nn = parseInt(ldMemAMatch[1], 16);
+    return [0x32, nn & 0xff, (nn >> 8) & 0xff];
+  }
+  const ldAMemMatch = compact.match(/^LDA,\(([0-9A-F]+)H?\)$/);
+  if (ldAMemMatch) {
+    const nn = parseInt(ldAMemMatch[1], 16);
+    return [0x3a, nn & 0xff, (nn >> 8) & 0xff];
+  }
+
+  // LD (HL), n
+  const ldHLnMatch = compact.match(/^LD\(HL\),([0-9A-F]+)H?$/);
+  if (ldHLnMatch) {
+    return [0x36, parseInt(ldHLnMatch[1], 16) & 0xff];
+  }
+
+  // PUSH/POP
+  const pushPopMatch = compact.match(/^(PUSH|POP)(BC|DE|HL|AF)$/);
+  if (pushPopMatch) {
+    const isPush = pushPopMatch[1] === 'PUSH';
+    const rrs = ['BC', 'DE', 'HL', 'AF'];
+    const idx = rrs.indexOf(pushPopMatch[2]);
+    return [(isPush ? 0xc5 : 0xc1) | (idx << 4)];
+  }
+
+  // BIT b, r
+  const bitMatch = compact.match(/^BIT([0-7]),([A-EHL]|B|C|D|E|H|L|A)$/);
+  if (bitMatch) {
+    const bit = parseInt(bitMatch[1]);
+    const r = REGS_MAP[bitMatch[2]];
+    return [0xcb, 0x40 | (bit << 3) | r];
+  }
+
   return [];
 };
 
@@ -82,64 +190,57 @@ function disasm(code: Uint8Array, start: number, count = 128) {
     if (op >= 0x40 && op <= 0x7f && op !== 0x76) {
       text = `LD ${REGS_LIST[(op >> 3) & 7]},${REGS_LIST[op & 7]}`;
       pc += 1;
+    } else if (op >= 0x80 && op <= 0xbf) {
+      const ops = ['ADD A,', 'ADC A,', 'SUB ', 'SBC A,', 'AND ', 'XOR ', 'OR ', 'CP '];
+      text = `${ops[(op >> 3) & 7]}${REGS_LIST[op & 7]}`;
+      pc += 1;
     } else {
       switch (op) {
-        case 0x3e:
-          text = `LD A,${hex2(code[pc + 1])}`;
-          pc += 2;
-          break;
-        case 0x06:
-          text = `LD B,${hex2(code[pc + 1])}`;
-          pc += 2;
-          break;
-        case 0x3d:
-          text = `DEC A`;
-          pc += 1;
-          break;
-        case 0x26:
-          text = `LD H,${hex2(code[pc + 1])}`;
-          pc += 2;
-          break;
-        case 0x2e:
-          text = `LD L,${hex2(code[pc + 1])}`;
-          pc += 2;
-          break;
-        case 0x77:
-          text = `LD (HL),A`;
-          pc += 1;
-          break;
-        case 0x32:
-          text = `LD (${hex4((code[pc + 2] << 8) | code[pc + 1])}),A`;
-          pc += 3;
-          break;
-        case 0xc2:
-          text = `JP NZ,${hex4((code[pc + 2] << 8) | code[pc + 1])}`;
-          pc += 3;
-          break;
-        case 0xc3:
-          text = `JP ${hex4((code[pc + 2] << 8) | code[pc + 1])}`;
-          pc += 3;
-          break;
-        case 0x18: {
-          let off = code[pc + 1];
-          if (off > 127) off -= 256;
-          text = `JR ${hex4(pc + 2 + off)}`;
-          pc += 2;
-          break;
+        case 0x00: text = 'NOP'; pc += 1; break;
+        case 0x01: text = `LD BC,${hex4(code[pc + 1] | (code[pc + 2] << 8))}`; pc += 3; break;
+        case 0x06: text = `LD B,${hex2(code[pc + 1])}`; pc += 2; break;
+        case 0x0e: text = `LD C,${hex2(code[pc + 1])}`; pc += 2; break;
+        case 0x11: text = `LD DE,${hex4(code[pc + 1] | (code[pc + 2] << 8))}`; pc += 3; break;
+        case 0x16: text = `LD D,${hex2(code[pc + 1])}`; pc += 2; break;
+        case 0x1e: text = `LD E,${hex2(code[pc + 1])}`; pc += 2; break;
+        case 0x21: text = `LD HL,${hex4(code[pc + 1] | (code[pc + 2] << 8))}`; pc += 3; break;
+        case 0x26: text = `LD H,${hex2(code[pc + 1])}`; pc += 2; break;
+        case 0x2e: text = `LD L,${hex2(code[pc + 1])}`; pc += 2; break;
+        case 0x31: text = `LD SP,${hex4(code[pc + 1] | (code[pc + 2] << 8))}`; pc += 3; break;
+        case 0x3e: text = `LD A,${hex2(code[pc + 1])}`; pc += 2; break;
+        case 0x32: text = `LD (${hex4(code[pc + 1] | (code[pc + 2] << 8))}),A`; pc += 3; break;
+        case 0x3a: text = `LD A,(${hex4(code[pc + 1] | (code[pc + 2] << 8))})`; pc += 3; break;
+        case 0x36: text = `LD (HL),${hex2(code[pc + 1])}`; pc += 2; break;
+        case 0x76: text = 'HALT'; pc += 1; break;
+        case 0xc3: text = `JP ${hex4(code[pc + 1] | (code[pc + 2] << 8))}`; pc += 3; break;
+        case 0xcd: text = `CALL ${hex4(code[pc + 1] | (code[pc + 2] << 8))}`; pc += 3; break;
+        case 0xc9: text = 'RET'; pc += 1; break;
+        case 0x18: { let off = code[pc + 1]; if (off > 127) off -= 256; text = `JR ${hex4(pc + 2 + off)}`; pc += 2; break; }
+        case 0x10: { let off = code[pc + 1]; if (off > 127) off -= 256; text = `DJNZ ${hex4(pc + 2 + off)}`; pc += 2; break; }
+        case 0xcb: {
+          let cbOp = code[pc + 1];
+          let r = REGS_LIST[cbOp & 7];
+          if ((cbOp >> 6) === 1) text = `BIT ${(cbOp >> 3) & 7},${r}`;
+          else if ((cbOp >> 6) === 2) text = `RES ${(cbOp >> 3) & 7},${r}`;
+          else if ((cbOp >> 6) === 3) text = `SET ${(cbOp >> 3) & 7},${r}`;
+          else {
+            const fns = ['RLC', 'RRC', 'RL', 'RR', 'SLA', 'SRA', 'SLL', 'SRL'];
+            text = `${fns[(cbOp >> 3) & 7]} ${r}`;
+          }
+          pc += 2; break;
         }
-        case 0x10: {
-          let off = code[pc + 1];
-          if (off > 127) off -= 256;
-          text = `DJNZ ${hex4(pc + 2 + off)}`;
-          pc += 2;
-          break;
+        case 0xed: {
+          let edOp = code[pc + 1];
+          if (edOp === 0xb0) text = 'LDIR';
+          else text = `ED ${hex2(edOp)}`;
+          pc += 2; break;
         }
-        case 0x00:
-          text = 'NOP';
-          pc += 1;
-          break;
         default:
-          text = op !== 0 ? `DB ${hex2(op)}` : '-';
+          if ((op & 0xc7) === 0x04) text = `INC ${REGS_LIST[(op >> 3) & 7]}`;
+          else if ((op & 0xc7) === 0x05) text = `DEC ${REGS_LIST[(op >> 3) & 7]}`;
+          else if ((op & 0xcf) === 0xc1) text = `POP ${['BC', 'DE', 'HL', 'AF'][(op >> 4) & 3]}`;
+          else if ((op & 0xcf) === 0xc5) text = `PUSH ${['BC', 'DE', 'HL', 'AF'][(op >> 4) & 3]}`;
+          else text = op !== 0 ? `DB ${hex2(op)}` : '-';
           pc += 1;
       }
     }
@@ -151,22 +252,27 @@ function disasm(code: Uint8Array, start: number, count = 128) {
 const samplePrograms: Record<string, () => Uint8Array> = {
   '1. 基本ロード': () => {
     const m = new Uint8Array(MEM_SIZE);
-    m.set([0x3e, 0xaa, 0x06, 0xbb], CODE_BASE);
+    m.set([0x3e, 0xaa, 0x06, 0xbb, 0x21, 0x00, 0x40, 0x77], CODE_BASE);
     return m;
   },
   '2. DJNZループ (10回)': () => {
     const m = new Uint8Array(MEM_SIZE);
-    m.set([0x06, 0x0a, 0x3e, 0x00, 0x3d, 0x10, 0xfd], CODE_BASE);
+    m.set([0x06, 0x0a, 0x3e, 0x00, 0x3c, 0x10, 0xfd], CODE_BASE);
     return m;
   },
-  '3. インダイレクト': () => {
+  '3. スタック操作': () => {
     const m = new Uint8Array(MEM_SIZE);
-    m.set([0x26, 0x40, 0x2e, 0x05, 0x3e, 0xd0, 0x77], CODE_BASE);
+    m.set([0x21, 0x12, 0x34, 0xe5, 0x01, 0x00, 0x00, 0xd1], CODE_BASE);
     return m;
   },
-  '4. JRジャンプ': () => {
+  '4. LDIR転送': () => {
     const m = new Uint8Array(MEM_SIZE);
-    m.set([0x3e, 0xff, 0x18, 0x01, 0x00, 0x06, 0xaa], CODE_BASE);
+    m.set([
+      0x21, 0x00, 0x00, // LD HL, 0000
+      0x11, 0x00, 0x40, // LD DE, 4000
+      0x01, 0x04, 0x00, // LD BC, 0004
+      0xed, 0xb0        // LDIR
+    ], CODE_BASE);
     return m;
   },
   '5. メモリ転送': () => {
@@ -190,8 +296,20 @@ const initialRegs = {
   E: 0,
   H: 0,
   L: 0,
+  IX: 0,
+  IY: 0,
   PC: CODE_BASE,
   SP: 0xfffe,
+  I: 0,
+  R: 0,
+  A2: 0,
+  F2: 0,
+  B2: 0,
+  C2: 0,
+  D2: 0,
+  E2: 0,
+  H2: 0,
+  L2: 0,
 };
 
 export default function Z80EduApp() {
@@ -269,97 +387,330 @@ export default function Z80EduApp() {
   const step = () => {
     setPrevRegs(regs);
     const newData = new Uint8Array(dataMemory);
-    const op = codeMemory[regs.PC];
-    const newRegs = { ...regs };
+    const m = codeMemory;
+    const dm = dataMemory;
+    const r = { ...regs };
     const memWrite: number[] = [];
 
-    if (op >= 0x40 && op <= 0x7f && op !== 0x76) {
-      const srcIdx = op & 7;
-      const dstIdx = (op >> 3) & 7;
-      const getVal = (idx: number) => {
-        const name = REGS_LIST[idx];
-        return name === '(HL)'
-          ? dataMemory[(newRegs.H << 8) | newRegs.L]
-          : (newRegs as any)[name];
-      };
-      const val = getVal(srcIdx);
-      if (REGS_LIST[dstIdx] === '(HL)') {
-        const addr = (newRegs.H << 8) | newRegs.L;
-        newData[addr] = val;
-        memWrite.push(addr);
+    const get8 = (addr: number) => dm[addr & 0xffff];
+    const set8 = (addr: number, val: number) => {
+      addr &= 0xffff;
+      newData[addr] = val & 0xff;
+      memWrite.push(addr);
+    };
+    const get16 = (addr: number) => get8(addr) | (get8(addr + 1) << 8);
+    const set16 = (addr: number, val: number) => {
+      set8(addr, val & 0xff);
+      set8(addr + 1, (val >> 8) & 0xff);
+    };
+
+    const push = (val: number) => {
+      r.SP = (r.SP - 2) & 0xffff;
+      set16(r.SP, val);
+    };
+    const pop = () => {
+      const val = get16(r.SP);
+      r.SP = (r.SP + 2) & 0xffff;
+      return val;
+    };
+
+    const getReg = (idx: number) => {
+      if (idx === 0) return r.B;
+      if (idx === 1) return r.C;
+      if (idx === 2) return r.D;
+      if (idx === 3) return r.E;
+      if (idx === 4) return r.H;
+      if (idx === 5) return r.L;
+      if (idx === 6) return get8((r.H << 8) | r.L);
+      return r.A;
+    };
+    const setReg = (idx: number, val: number) => {
+      val &= 0xff;
+      if (idx === 0) r.B = val;
+      else if (idx === 1) r.C = val;
+      else if (idx === 2) r.D = val;
+      else if (idx === 3) r.E = val;
+      else if (idx === 4) r.H = val;
+      else if (idx === 5) r.L = val;
+      else if (idx === 6) set8((r.H << 8) | r.L, val);
+      else r.A = val;
+    };
+
+    const add8 = (a: number, b: number, cy = 0) => {
+      const res = a + b + cy;
+      const h = (a & 0xf) + (b & 0xf) + cy;
+      r.F = SZP_TABLE[res & 0xff] & ~(PV_FLAG | N_FLAG | C_FLAG | H_FLAG);
+      if (res > 0xff) r.F |= C_FLAG;
+      if (h > 0xf) r.F |= H_FLAG;
+      if (((a ^ ~b) & (a ^ res) & 0x80) !== 0) r.F |= PV_FLAG;
+      return res & 0xff;
+    };
+    const sub8 = (a: number, b: number, cy = 0) => {
+      const res = a - b - cy;
+      const h = (a & 0xf) - (b & 0xf) - cy;
+      r.F =
+        SZP_TABLE[res & 0xff] & ~(PV_FLAG | N_FLAG | C_FLAG | H_FLAG);
+      r.F |= N_FLAG;
+      if (res < 0) r.F |= C_FLAG;
+      if (h < 0) r.F |= H_FLAG;
+      if (((a ^ b) & (a ^ res) & 0x80) !== 0) r.F |= PV_FLAG;
+      return res & 0xff;
+    };
+    const cp8 = (a: number, b: number) => {
+      sub8(a, b);
+    };
+    const and8 = (val: number) => {
+      r.A &= val;
+      r.F = SZP_TABLE[r.A] | H_FLAG;
+    };
+    const or8 = (val: number) => {
+      r.A |= val;
+      r.F = SZP_TABLE[r.A];
+    };
+    const xor8 = (val: number) => {
+      r.A ^= val;
+      r.F = SZP_TABLE[r.A];
+    };
+
+    let op = m[r.PC++];
+    r.R = (r.R + 1) & 0x7f;
+
+    // Main Opcode Map
+    if (op >= 0x40 && op <= 0x7f) {
+      // LD r, r'
+      if (op === 0x76) {
+        /* HALT */ r.PC--;
       } else {
-        (newRegs as any)[REGS_LIST[dstIdx]] = val;
+        setReg((op >> 3) & 7, getReg(op & 7));
       }
-      newRegs.PC += 1;
+    } else if (op >= 0x80 && op <= 0xbf) {
+      // ALU r
+      const val = getReg(op & 7);
+      switch ((op >> 3) & 7) {
+        case 0: r.A = add8(r.A, val); break;
+        case 1: r.A = add8(r.A, val, (r.F & C_FLAG)); break;
+        case 2: r.A = sub8(r.A, val); break;
+        case 3: r.A = sub8(r.A, val, (r.F & C_FLAG)); break;
+        case 4: and8(val); break;
+        case 5: xor8(val); break;
+        case 6: or8(val); break;
+        case 7: cp8(r.A, val); break;
+      }
     } else {
       switch (op) {
-        case 0x3e:
-          newRegs.A = codeMemory[regs.PC + 1];
-          newRegs.PC += 2;
-          break;
-        case 0x06:
-          newRegs.B = codeMemory[regs.PC + 1];
-          newRegs.PC += 2;
-          break;
-        case 0x3d:
-          newRegs.A = (newRegs.A - 1) & 0xff;
-          newRegs.F = (newRegs.A === 0 ? 0x40 : 0) | (newRegs.A & 0x80);
-          newRegs.PC += 1;
-          break;
-        case 0x26:
-          newRegs.H = codeMemory[regs.PC + 1];
-          newRegs.PC += 2;
-          break;
-        case 0x2e:
-          newRegs.L = codeMemory[regs.PC + 1];
-          newRegs.PC += 2;
-          break;
-        case 0x77: {
-          const addr = (newRegs.H << 8) | newRegs.L;
-          newData[addr] = newRegs.A;
-          memWrite.push(addr);
-          newRegs.PC += 1;
+        case 0x00: break; // NOP
+        case 0x01: r.C = m[r.PC++]; r.B = m[r.PC++]; break; // LD BC, nn
+        case 0x02: set8((r.B << 8) | r.C, r.A); break; // LD (BC), A
+        case 0x03: { let v = ((r.B << 8) | r.C + 1) & 0xffff; r.B = v >> 8; r.C = v & 0xff; break; } // INC BC
+        case 0x04: r.B = add8(r.B, 1); r.F = (r.F & C_FLAG) | (SZP_TABLE[r.B] & ~C_FLAG); break; // INC B (H-flag logic simplified)
+        case 0x05: r.B = sub8(r.B, 1); r.F = (r.F & C_FLAG) | (SZP_TABLE[r.B] & ~C_FLAG) | N_FLAG; break; // DEC B
+        case 0x06: r.B = m[r.PC++]; break; // LD B, n
+        case 0x09: {
+          const hl = (r.H << 8) | r.L; const bc = (r.B << 8) | r.C; const res = hl + bc;
+          r.F = (r.F & ~(N_FLAG | C_FLAG | H_FLAG)) | (res > 0xffff ? C_FLAG : 0);
+          r.H = (res >> 8) & 0xff; r.L = res & 0xff; break;
+        } // ADD HL, BC
+        case 0x0a: r.A = get8((r.B << 8) | r.C); break; // LD A, (BC)
+        case 0x0b: { let v = ((r.B << 8) | r.C - 1) & 0xffff; r.B = v >> 8; r.C = v & 0xff; break; } // DEC BC
+        case 0x0c: r.C = add8(r.C, 1); r.F = (r.F & C_FLAG) | (SZP_TABLE[r.C] & ~C_FLAG); break;
+        case 0x0d: r.C = sub8(r.C, 1); r.F = (r.F & C_FLAG) | (SZP_TABLE[r.C] & ~C_FLAG) | N_FLAG; break;
+        case 0x0e: r.C = m[r.PC++]; break;
+        case 0x10: { let off = m[r.PC++]; if (off > 127) off -= 256; r.B = (r.B - 1) & 0xff; if (r.B !== 0) r.PC += off; break; } // DJNZ
+        case 0x11: r.E = m[r.PC++]; r.D = m[r.PC++]; break; // LD DE, nn
+        case 0x12: set8((r.D << 8) | r.E, r.A); break; // LD (DE), A
+        case 0x13: { let v = ((r.D << 8) | r.E + 1) & 0xffff; r.D = v >> 8; r.E = v & 0xff; break; }
+        case 0x14: r.D = add8(r.D, 1); r.F = (r.F & C_FLAG) | (SZP_TABLE[r.D] & ~C_FLAG); break;
+        case 0x15: r.D = sub8(r.D, 1); r.F = (r.F & C_FLAG) | (SZP_TABLE[r.D] & ~C_FLAG) | N_FLAG; break;
+        case 0x16: r.D = m[r.PC++]; break;
+        case 0x18: { let off = m[r.PC++]; if (off > 127) off -= 256; r.PC += off; break; } // JR
+        case 0x19: {
+          const hl = (r.H << 8) | r.L; const de = (r.D << 8) | r.E; const res = hl + de;
+          r.F = (r.F & ~(N_FLAG | C_FLAG | H_FLAG)) | (res > 0xffff ? C_FLAG : 0);
+          r.H = (res >> 8) & 0xff; r.L = res & 0xff; break;
+        } // ADD HL, DE
+        case 0x1a: r.A = get8((r.D << 8) | r.E); break;
+        case 0x1b: { let v = ((r.D << 8) | r.E - 1) & 0xffff; r.D = v >> 8; r.E = v & 0xff; break; }
+        case 0x1c: r.E = add8(r.E, 1); r.F = (r.F & C_FLAG) | (SZP_TABLE[r.E] & ~C_FLAG); break;
+        case 0x1d: r.E = sub8(r.E, 1); r.F = (r.F & C_FLAG) | (SZP_TABLE[r.E] & ~C_FLAG) | N_FLAG; break;
+        case 0x1e: r.E = m[r.PC++]; break;
+        case 0x20: { let off = m[r.PC++]; if (off > 127) off -= 256; if (!(r.F & Z_FLAG)) r.PC += off; break; } // JR NZ, e
+        case 0x21: r.L = m[r.PC++]; r.H = m[r.PC++]; break; // LD HL, nn
+        case 0x22: { let adr = m[r.PC++] | (m[r.PC++] << 8); set16(adr, (r.H << 8) | r.L); break; } // LD (nn), HL
+        case 0x23: { let v = ((r.H << 8) | r.L + 1) & 0xffff; r.H = v >> 8; r.L = v & 0xff; break; }
+        case 0x24: r.H = add8(r.H, 1); r.F = (r.F & C_FLAG) | (SZP_TABLE[r.H] & ~C_FLAG); break;
+        case 0x25: r.H = sub8(r.H, 1); r.F = (r.F & C_FLAG) | (SZP_TABLE[r.H] & ~C_FLAG) | N_FLAG; break;
+        case 0x26: r.H = m[r.PC++]; break;
+        case 0x28: { let off = m[r.PC++]; if (off > 127) off -= 256; if (r.F & Z_FLAG) r.PC += off; break; } // JR Z, e
+        case 0x29: {
+          const hl = (r.H << 8) | r.L; const res = hl + hl;
+          r.F = (r.F & ~(N_FLAG | C_FLAG | H_FLAG)) | (res > 0xffff ? C_FLAG : 0);
+          r.H = (res >> 8) & 0xff; r.L = res & 0xff; break;
+        } // ADD HL, HL
+        case 0x2a: { let adr = m[r.PC++] | (m[r.PC++] << 8); let v = get16(adr); r.H = v >> 8; r.L = v & 0xff; break; } // LD HL, (nn)
+        case 0x2b: { let v = ((r.H << 8) | r.L - 1) & 0xffff; r.H = v >> 8; r.L = v & 0xff; break; }
+        case 0x2c: r.L = add8(r.L, 1); r.F = (r.F & C_FLAG) | (SZP_TABLE[r.L] & ~C_FLAG); break;
+        case 0x2d: r.L = sub8(r.L, 1); r.F = (r.F & C_FLAG) | (SZP_TABLE[r.L] & ~C_FLAG) | N_FLAG; break;
+        case 0x2e: r.L = m[r.PC++]; break;
+        case 0x30: { let off = m[r.PC++]; if (off > 127) off -= 256; if (!(r.F & C_FLAG)) r.PC += off; break; } // JR NC, e
+        case 0x31: r.SP = m[r.PC++] | (m[r.PC++] << 8); break; // LD SP, nn
+        case 0x32: { let adr = m[r.PC++] | (m[r.PC++] << 8); set8(adr, r.A); break; } // LD (nn), A
+        case 0x33: r.SP = (r.SP + 1) & 0xffff; break;
+        case 0x34: { let adr = (r.H << 8) | r.L; let v = add8(get8(adr), 1); set8(adr, v); r.F = (r.F & C_FLAG) | (SZP_TABLE[v] & ~C_FLAG); break; } // INC (HL)
+        case 0x35: { let adr = (r.H << 8) | r.L; let v = sub8(get8(adr), 1); set8(adr, v); r.F = (r.F & C_FLAG) | (SZP_TABLE[v] & ~C_FLAG) | N_FLAG; break; } // DEC (HL)
+        case 0x36: set8((r.H << 8) | r.L, m[r.PC++]); break; // LD (HL), n
+        case 0x38: { let off = m[r.PC++]; if (off > 127) off -= 256; if (r.F & C_FLAG) r.PC += off; break; } // JR C, e
+        case 0x39: {
+          const hl = (r.H << 8) | r.L; const res = hl + r.SP;
+          r.F = (r.F & ~(N_FLAG | C_FLAG | H_FLAG)) | (res > 0xffff ? C_FLAG : 0);
+          r.H = (res >> 8) & 0xff; r.L = res & 0xff; break;
+        } // ADD HL, SP
+        case 0x3a: { let adr = m[r.PC++] | (m[r.PC++] << 8); r.A = get8(adr); break; } // LD A, (nn)
+        case 0x3b: r.SP = (r.SP - 1) & 0xffff; break;
+        case 0x3c: r.A = add8(r.A, 1); r.F = (r.F & C_FLAG) | (SZP_TABLE[r.A] & ~C_FLAG); break;
+        case 0x3d: r.A = sub8(r.A, 1); r.F = (r.F & C_FLAG) | (SZP_TABLE[r.A] & ~C_FLAG) | N_FLAG; break;
+        case 0x3e: r.A = m[r.PC++]; break;
+        case 0xc0: if (!(r.F & Z_FLAG)) r.PC = pop(); break; // RET NZ
+        case 0xc1: { let v = pop(); r.C = v & 0xff; r.B = v >> 8; break; } // POP BC
+        case 0xc2: { let adr = m[r.PC++] | (m[r.PC++] << 8); if (!(r.F & Z_FLAG)) r.PC = adr; break; } // JP NZ, nn
+        case 0xc3: r.PC = m[r.PC++] | (m[r.PC++] << 8); break; // JP nn
+        case 0xc4: { let adr = m[r.PC++] | (m[r.PC++] << 8); if (!(r.F & Z_FLAG)) { push(r.PC); r.PC = adr; } break; } // CALL NZ, nn
+        case 0xc5: push((r.B << 8) | r.C); break; // PUSH BC
+        case 0xc6: r.A = add8(r.A, m[r.PC++]); break; // ADD A, n
+        case 0xc7: push(r.PC); r.PC = 0x00; break; // RST 00H
+        case 0xc8: if (r.F & Z_FLAG) r.PC = pop(); break; // RET Z
+        case 0xc9: r.PC = pop(); break; // RET
+        case 0xca: { let adr = m[r.PC++] | (m[r.PC++] << 8); if (r.F & Z_FLAG) r.PC = adr; break; } // JP Z, nn
+        case 0xcc: { let adr = m[r.PC++] | (m[r.PC++] << 8); if (r.F & Z_FLAG) { push(r.PC); r.PC = adr; } break; } // CALL Z, nn
+        case 0xcd: { let adr = m[r.PC++] | (m[r.PC++] << 8); push(r.PC); r.PC = adr; break; } // CALL nn
+        case 0xce: r.A = add8(r.A, m[r.PC++], (r.F & C_FLAG)); break; // ADC A, n
+        case 0xcf: push(r.PC); r.PC = 0x08; break; // RST 08H
+        case 0xd0: if (!(r.F & C_FLAG)) r.PC = pop(); break; // RET NC
+        case 0xd1: { let v = pop(); r.E = v & 0xff; r.D = v >> 8; break; } // POP DE
+        case 0xd2: { let adr = m[r.PC++] | (m[r.PC++] << 8); if (!(r.F & C_FLAG)) r.PC = adr; break; } // JP NC, nn
+        case 0xd4: { let adr = m[r.PC++] | (m[r.PC++] << 8); if (!(r.F & C_FLAG)) { push(r.PC); r.PC = adr; } break; } // CALL NC, nn
+        case 0xd5: push((r.D << 8) | r.E); break; // PUSH DE
+        case 0xd6: r.A = sub8(r.A, m[r.PC++]); break; // SUB n
+        case 0xd7: push(r.PC); r.PC = 0x10; break; // RST 10H
+        case 0xd8: if (r.F & C_FLAG) r.PC = pop(); break; // RET C
+        case 0xda: { let adr = m[r.PC++] | (m[r.PC++] << 8); if (r.F & C_FLAG) r.PC = adr; break; } // JP C, nn
+        case 0xdc: { let adr = m[r.PC++] | (m[r.PC++] << 8); if (r.F & C_FLAG) { push(r.PC); r.PC = adr; } break; } // CALL C, nn
+        case 0xde: r.A = sub8(r.A, m[r.PC++], (r.F & C_FLAG)); break; // SBC A, n
+        case 0xdf: push(r.PC); r.PC = 0x18; break; // RST 18H
+        case 0xe0: if (!(r.F & PV_FLAG)) r.PC = pop(); break; // RET PO
+        case 0xe1: { let v = pop(); r.L = v & 0xff; r.H = v >> 8; break; } // POP HL
+        case 0xe2: { let adr = m[r.PC++] | (m[r.PC++] << 8); if (!(r.F & PV_FLAG)) r.PC = adr; break; } // JP PO, nn
+        case 0xe3: { let v = get16(r.SP); set16(r.SP, (r.H << 8) | r.L); r.H = v >> 8; r.L = v & 0xff; break; } // EX (SP), HL
+        case 0xe4: { let adr = m[r.PC++] | (m[r.PC++] << 8); if (!(r.F & PV_FLAG)) { push(r.PC); r.PC = adr; } break; } // CALL PO, nn
+        case 0xe5: push((r.H << 8) | r.L); break; // PUSH HL
+        case 0xe6: and8(m[r.PC++]); break; // AND n
+        case 0xe7: push(r.PC); r.PC = 0x20; break; // RST 20H
+        case 0xe8: if (r.F & PV_FLAG) r.PC = pop(); break; // RET PE
+        case 0xe9: r.PC = (r.H << 8) | r.L; break; // JP (HL)
+        case 0xea: { let adr = m[r.PC++] | (m[r.PC++] << 8); if (r.F & PV_FLAG) r.PC = adr; break; } // JP PE, nn
+        case 0xeb: { let t = r.H; r.H = r.D; r.D = t; t = r.L; r.L = r.E; r.E = t; break; } // EX DE, HL
+        case 0xec: { let adr = m[r.PC++] | (m[r.PC++] << 8); if (r.F & PV_FLAG) { push(r.PC); r.PC = adr; } break; } // CALL PE, nn
+        case 0xee: xor8(m[r.PC++]); break; // XOR n
+        case 0xef: push(r.PC); r.PC = 0x28; break; // RST 28H
+        case 0xf0: if (!(r.F & S_FLAG)) r.PC = pop(); break; // RET P
+        case 0xf1: { let v = pop(); r.F = v & 0xff; r.A = v >> 8; break; } // POP AF
+        case 0xf2: { let adr = m[r.PC++] | (m[r.PC++] << 8); if (!(r.F & S_FLAG)) r.PC = adr; break; } // JP P, nn
+        case 0xf3: /* DI */ break;
+        case 0xf4: { let adr = m[r.PC++] | (m[r.PC++] << 8); if (!(r.F & S_FLAG)) { push(r.PC); r.PC = adr; } break; } // CALL P, nn
+        case 0xf5: push((r.A << 8) | r.F); break; // PUSH AF
+        case 0xf6: or8(m[r.PC++]); break; // OR n
+        case 0xf7: push(r.PC); r.PC = 0x30; break; // RST 30H
+        case 0xf8: if (r.F & S_FLAG) r.PC = pop(); break; // RET M
+        case 0xf9: r.SP = (r.H << 8) | r.L; break; // LD SP, HL
+        case 0xfa: { let adr = m[r.PC++] | (m[r.PC++] << 8); if (r.F & S_FLAG) r.PC = adr; break; } // JP M, nn
+        case 0xfb: /* EI */ break;
+        case 0xfc: { let adr = m[r.PC++] | (m[r.PC++] << 8); if (r.F & S_FLAG) { push(r.PC); r.PC = adr; } break; } // CALL M, nn
+        case 0xfe: cp8(r.A, m[r.PC++]); break; // CP n
+        case 0xff: push(r.PC); r.PC = 0x38; break; // RST 38H
+
+        case 0xcb: {
+          let cbOp = m[r.PC++];
+          let val = getReg(cbOp & 7);
+          let res = val;
+          switch (cbOp >> 3) {
+            case 0: // RLC
+              r.F = (val >> 7) & C_FLAG; res = ((val << 1) | r.F) & 0xff; r.F |= SZP_TABLE[res]; break;
+            case 1: // RRC
+              r.F = val & C_FLAG; res = (val >> 1) | (r.F << 7); r.F |= SZP_TABLE[res]; break;
+            case 2: // RL
+              let c = r.F & C_FLAG; r.F = (val >> 7) & C_FLAG; res = ((val << 1) | c) & 0xff; r.F |= SZP_TABLE[res]; break;
+            case 3: // RR
+              let c2 = r.F & C_FLAG; r.F = val & C_FLAG; res = (val >> 1) | (c2 << 7); r.F |= SZP_TABLE[res]; break;
+            case 4: // SLA
+              r.F = (val >> 7) & C_FLAG; res = (val << 1) & 0xff; r.F |= SZP_TABLE[res]; break;
+            case 5: // SRA
+              r.F = val & C_FLAG; res = (val >> 1) | (val & 0x80); r.F |= SZP_TABLE[res]; break;
+            case 7: // SRL
+              r.F = val & C_FLAG; res = (val >> 1); r.F |= SZP_TABLE[res]; break;
+            default:
+              if ((cbOp >> 6) === 1) { // BIT
+                let bit = (cbOp >> 3) & 7; r.F = (r.F & C_FLAG) | H_FLAG | (SZP_TABLE[val & (1 << bit)] & ~PV_FLAG);
+                if (bit === 7 && (val & 0x80)) r.F |= S_FLAG;
+                return; // res not used
+              } else if ((cbOp >> 6) === 2) { // RES
+                res = val & ~(1 << ((cbOp >> 3) & 7));
+              } else if ((cbOp >> 6) === 3) { // SET
+                res = val | (1 << ((cbOp >> 3) & 7));
+              }
+          }
+          setReg(cbOp & 7, res);
           break;
         }
-        case 0x32: {
-          const addr = (codeMemory[regs.PC + 2] << 8) | codeMemory[regs.PC + 1];
-          newData[addr] = newRegs.A;
-          memWrite.push(addr);
-          newRegs.PC += 3;
+
+        case 0xed: {
+          let edOp = m[r.PC++];
+          switch (edOp) {
+            case 0x44: r.A = 0; r.F = SZP_TABLE[r.A]; break; // NEG (placeholder)
+            case 0x47: r.I = r.A; break; // LD I, A
+            case 0x4f: r.R = r.A; break; // LD R, A
+            case 0x56: /* IM 1 */ break;
+            case 0x5e: /* IM 2 */ break;
+            case 0x67: { // RRD
+              let hlVal = get8((r.H << 8) | r.L); let lowA = r.A & 0x0f;
+              r.A = (r.A & 0xf0) | (hlVal & 0x0f);
+              set8((r.H << 8) | r.L, (hlVal >> 4) | (lowA << 4));
+              r.F = (r.F & C_FLAG) | SZP_TABLE[r.A]; break;
+            }
+            case 0x6f: { // RLD
+              let hlVal = get8((r.H << 8) | r.L); let lowA = r.A & 0x0f;
+              r.A = (r.A & 0xf0) | (hlVal >> 4);
+              set8((r.H << 8) | r.L, (hlVal << 4) | lowA);
+              r.F = (r.F & C_FLAG) | SZP_TABLE[r.A]; break;
+            }
+            case 0xb0: { // LDIR
+              let src = (r.H << 8) | r.L; let dst = (r.D << 8) | r.E; let len = (r.B << 8) | r.C;
+              if (len > 0) {
+                set8(dst, get8(src));
+                src = (src + 1) & 0xffff; dst = (dst + 1) & 0xffff; len = (len - 1) & 0xffff;
+                r.H = src >> 8; r.L = src & 0xff; r.D = dst >> 8; r.E = dst & 0xff; r.B = len >> 8; r.C = len & 0xff;
+                if (len > 0) r.PC -= 2;
+                r.F &= ~(N_FLAG | H_FLAG | PV_FLAG);
+              }
+              break;
+            }
+            default: break;
+          }
           break;
         }
-        case 0xc2:
-          if (!(newRegs.F & 0x40))
-            newRegs.PC =
-              (codeMemory[regs.PC + 2] << 8) | codeMemory[regs.PC + 1];
-          else newRegs.PC += 3;
-          break;
-        case 0xc3:
-          newRegs.PC = (codeMemory[regs.PC + 2] << 8) | codeMemory[regs.PC + 1];
-          break;
-        case 0x18: {
-          let off = codeMemory[regs.PC + 1];
-          if (off > 127) off -= 256;
-          newRegs.PC += 2 + off;
+        // DD/FD (IX/IY) simplified for brevity but added basic support
+        case 0xdd: case 0xfd: {
+          let isIY = (op === 0xfd);
+          let subOp = m[r.PC++];
+          if (subOp === 0x21) { r[isIY ? 'IY' : 'IX'] = m[r.PC++] | (m[r.PC++] << 8); }
+          else if (subOp === 0x36) { let d = m[r.PC++]; if (d > 127) d -= 256; set8((r[isIY ? 'IY' : 'IX'] + d), m[r.PC++]); }
           break;
         }
-        case 0x10: {
-          newRegs.B = (newRegs.B - 1) & 0xff;
-          let off = codeMemory[regs.PC + 1];
-          if (off > 127) off -= 256;
-          if (newRegs.B !== 0) newRegs.PC += 2 + off;
-          else newRegs.PC += 2;
-          break;
-        }
-        case 0x00:
-          newRegs.PC += 1;
-          break;
-        default:
-          newRegs.PC += 1;
+
+        default: break;
       }
     }
+
     setDataMemory(newData);
-    setRegs(newRegs);
+    setRegs(r);
     setWrites(memWrite);
   };
 
@@ -484,18 +835,16 @@ export default function Z80EduApp() {
             <div className="grid grid-cols-4 gap-2">
               <BoldReg label="A" val={regs.A} prevVal={prevRegs.A} />
               <BoldReg label="F" val={regs.F} prevVal={prevRegs.F} />
-              <BoldReg
-                label="PC"
-                val={regs.PC}
-                prevVal={prevRegs.PC}
-                size={4}
-              />
-              <BoldReg
-                label="SP"
-                val={regs.SP}
-                prevVal={prevRegs.SP}
-                size={4}
-              />
+              <BoldReg label="B" val={regs.B} prevVal={prevRegs.B} />
+              <BoldReg label="C" val={regs.C} prevVal={prevRegs.C} />
+              <BoldReg label="D" val={regs.D} prevVal={prevRegs.D} />
+              <BoldReg label="E" val={regs.E} prevVal={prevRegs.E} />
+              <BoldReg label="H" val={regs.H} prevVal={prevRegs.H} />
+              <BoldReg label="L" val={regs.L} prevVal={prevRegs.L} />
+              <BoldReg label="IX" val={regs.IX} prevVal={prevRegs.IX} size={4} />
+              <BoldReg label="IY" val={regs.IY} prevVal={prevRegs.IY} size={4} />
+              <BoldReg label="SP" val={regs.SP} prevVal={prevRegs.SP} size={4} />
+              <BoldReg label="PC" val={regs.PC} prevVal={prevRegs.PC} size={4} />
             </div>
             <div className="bg-black/60 p-3 rounded-xl border border-zinc-800">
               <div className="flex gap-1">
@@ -506,20 +855,6 @@ export default function Z80EduApp() {
                 <FlagLamp label="P" bit={2} val={regs.F} desc="P/V" />
                 <FlagLamp label="N" bit={1} val={regs.F} desc="N/S" />
                 <FlagLamp label="C" bit={0} val={regs.F} desc="Carry" />
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <div className="flex flex-col gap-2">
-                <BoldReg label="B" val={regs.B} prevVal={prevRegs.B} />
-                <BoldReg label="C" val={regs.C} prevVal={prevRegs.C} />
-              </div>
-              <div className="flex flex-col gap-2">
-                <BoldReg label="D" val={regs.D} prevVal={prevRegs.D} />
-                <BoldReg label="E" val={regs.E} prevVal={prevRegs.E} />
-              </div>
-              <div className="flex flex-col gap-2">
-                <BoldReg label="H" val={regs.H} prevVal={prevRegs.H} />
-                <BoldReg label="L" val={regs.L} prevVal={prevRegs.L} />
               </div>
             </div>
           </div>
