@@ -1,0 +1,40 @@
+name: Build and Deploy to XREA
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 1. Node.js のセットアップ
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # プロジェクトに合わせて変更してください
+          cache: 'npm'
+
+      # 2. 依存関係のインストールとビルド
+      - name: Install and Build
+        run: |
+          npm install
+          npm run build
+
+      # 3. lftp のインストール
+      - name: Install lftp
+        run: sudo apt-get install -y lftp
+
+      # 4. dist ディレクトリのみをデプロイ
+      - name: FTP Deploy
+        run: |
+          lftp -e "set ftp:ssl-allow no; \
+          open -u ${{ secrets.XREA_USER }},${{ secrets.XREA_PASS }} ${{ secrets.XREA_HOST }}; \
+          mirror -R ./dist/ /public_html/ \
+          --ignore-time --delete --parallel=10 \
+          --exclude .git/; \
+          quit"
