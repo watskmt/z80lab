@@ -12,6 +12,8 @@ const injectTailwind = () => {
 const MEM_SIZE = 0x10000;
 const CODE_BASE = 0x0000;
 const DATA_BASE = 0x4000;
+const IO_OUT_ADDR = 0x8000;
+const IO_IN_ADDR = 0x8001;
 
 const hex2 = (v: number) =>
   (v & 0xff).toString(16).toUpperCase().padStart(2, '0');
@@ -285,6 +287,15 @@ const samplePrograms: Record<string, () => Uint8Array> = {
     m.set([0x26, 0x12, 0x2e, 0x34], CODE_BASE);
     return m;
   },
+  '7. I/O連携 (スイッチ→ランプ)': () => {
+    const m = new Uint8Array(MEM_SIZE);
+    m.set([
+      0x3a, 0x01, 0x80, // LD A, (8001H) ; 入力スイッチ
+      0x32, 0x00, 0x80, // LD (8000H), A ; 出力ランプ
+      0xc3, 0x00, 0x00  // JP 0000H
+    ], CODE_BASE);
+    return m;
+  },
 };
 
 const initialRegs = {
@@ -312,7 +323,7 @@ const initialRegs = {
   L2: 0,
 };
 
-export default function Z80EduApp() {
+export default function App() {
   useEffect(() => {
     injectTailwind();
   }, []);
@@ -320,6 +331,8 @@ export default function Z80EduApp() {
     samplePrograms['1. 基本ロード']()
   );
   const [dataMemory, setDataMemory] = useState(new Uint8Array(MEM_SIZE));
+  const [ioOut, setIoOut] = useState(0);
+  const [ioIn, setIoIn] = useState(0);
   const [prevRegs, setPrevRegs] = useState(initialRegs);
   const [regs, setRegs] = useState(initialRegs);
   const [writes, setWrites] = useState<number[]>([]);
@@ -329,6 +342,8 @@ export default function Z80EduApp() {
 
   const resetState = () => {
     setDataMemory(new Uint8Array(MEM_SIZE));
+    setIoOut(0);
+    setIoIn(0);
     setRegs(initialRegs);
     setPrevRegs(initialRegs);
     setWrites([]);
@@ -392,10 +407,18 @@ export default function Z80EduApp() {
     const r = { ...regs };
     const memWrite: number[] = [];
 
-    const get8 = (addr: number) => dm[addr & 0xffff];
+    const get8 = (addr: number) => {
+      addr &= 0xffff;
+      if (addr === IO_IN_ADDR) return ioIn;
+      return dm[addr];
+    };
     const set8 = (addr: number, val: number) => {
       addr &= 0xffff;
-      newData[addr] = val & 0xff;
+      val &= 0xff;
+      if (addr === IO_OUT_ADDR) {
+        setIoOut(val);
+      }
+      newData[addr] = val;
       memWrite.push(addr);
     };
     const get16 = (addr: number) => get8(addr) | (get8(addr + 1) << 8);
@@ -725,14 +748,14 @@ export default function Z80EduApp() {
         }`}
       >
         <span
-          className={`text-xl font-black ${
-            isOn ? 'text-red-500' : 'text-white/80'
+          className={`text-2xl font-black ${
+            isOn ? 'text-red-500' : 'text-white'
           }`}
         >
           {label}
         </span>
         <span
-          className={`text-[7px] font-bold mt-1 uppercase text-center ${
+          className={`text-[9px] font-bold mt-1 uppercase text-center ${
             isOn ? 'text-red-400' : 'text-zinc-600'
           }`}
         >
@@ -753,8 +776,8 @@ export default function Z80EduApp() {
         }`}
       >
         <span
-          className={`font-black uppercase tracking-tight text-xs mb-1 ${
-            isChanged ? 'text-green-300' : 'text-zinc-500'
+          className={`font-black uppercase tracking-tight text-sm mb-1 ${
+            isChanged ? 'text-green-300' : 'text-white'
           }`}
         >
           {label}
@@ -766,6 +789,90 @@ export default function Z80EduApp() {
         >
           {size === 2 ? hex2(val) : hex4(val)}
         </span>
+      </div>
+    );
+  };
+
+  const IOPanel = () => {
+    const toggleBit = (bit: number) => {
+      setIoIn(ioIn ^ (1 << bit));
+    };
+
+    return (
+      <div className="bg-zinc-900/60 rounded-2xl p-4 border border-zinc-800 flex flex-col gap-4 shadow-2xl">
+        <h2 className="text-purple-400 font-black text-[10px] tracking-[0.3em] border-b border-zinc-800 pb-1 uppercase text-center italic">
+          Memory Mapped I/O
+        </h2>
+
+        <div className="flex flex-col gap-2">
+          {/* OUTPUT LAMPS (0x8000) */}
+          <div className="bg-black/40 p-2 rounded-xl border border-zinc-800">
+            <div className="flex justify-between items-center mb-1">
+              <span className="text-[10px] font-bold text-zinc-500 uppercase">Output Lamps (0x8000)</span>
+              <span className="text-xs font-mono text-zinc-400">{hex2(ioOut)}</span>
+            </div>
+            <div className="flex gap-1">
+              {[7, 6, 5, 4, 3, 2, 1, 0].map((bit) => {
+                const isOn = (ioOut & (1 << bit)) !== 0;
+                return (
+                  <div key={bit} className="flex-1 flex flex-col items-center gap-0.5">
+                    <div
+                      className={`w-full aspect-square rounded-full border-2 transition-all duration-300 ${
+                        isOn
+                          ? 'bg-yellow-400 border-yellow-200 shadow-[0_0_10px_rgba(250,204,21,0.6)]'
+                          : 'bg-zinc-900 border-zinc-800'
+                      }`}
+                    />
+                    <span className="text-[9px] font-bold text-white">B{bit}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* INPUT SWITCHES (0x8001) */}
+          <div className="bg-black/40 p-2 rounded-xl border border-zinc-800">
+            <div className="flex justify-between items-center mb-1">
+              <span className="text-[10px] font-bold text-zinc-500 uppercase">Input Switches (0x8001)</span>
+              <span className="text-xs font-mono text-zinc-400">{hex2(ioIn)}</span>
+            </div>
+            <div className="flex gap-1">
+              {[7, 6, 5, 4, 3, 2, 1, 0].map((bit) => {
+                const isOn = (ioIn & (1 << bit)) !== 0;
+                return (
+                  <div key={bit} className="flex-1 flex flex-col items-center gap-1">
+                    <div
+                      onClick={() => toggleBit(bit)}
+                      className="w-full bg-zinc-800 rounded-lg p-0.5 border border-zinc-700 h-16 flex flex-col items-center justify-between relative shadow-inner cursor-pointer hover:bg-zinc-700/50 transition-colors"
+                    >
+                      {/* 上の状態(1)を示すガイドラベル */}
+                      <span className={`text-[7px] font-black ${isOn ? 'text-white' : 'text-zinc-600'}`}>1</span>
+                      
+                      {/* レバースイッチ本体 */}
+                      <div
+                        className={`w-full h-8 rounded-md transition-all duration-200 relative flex items-center justify-center ${
+                          isOn
+                            ? 'bg-zinc-300 border-t-2 border-white shadow-[0_-2px_6px_rgba(255,255,255,0.3)] -translate-y-2'
+                            : 'bg-zinc-600 border-b-2 border-zinc-800 shadow-[0_2px_4px_rgba(0,0,0,0.4)] translate-y-2'
+                        }`}
+                      >
+                        {/* スイッチの表面テクスチャ */}
+                        <div className={`w-1/2 h-full ${isOn ? 'bg-gradient-to-b from-white to-zinc-400' : 'bg-gradient-to-b from-zinc-500 to-zinc-800'} rounded-sm opacity-50`} />
+                        
+                        {/* 状態インジケーター（白く光るドット） */}
+                        <div className={`absolute top-1 w-1.5 h-1.5 rounded-full transition-all ${isOn ? 'bg-white shadow-[0_0_5px_white]' : 'bg-zinc-900'}`} />
+                      </div>
+
+                      {/* 下の状態(0)を示すガイドラベル */}
+                      <span className={`text-[7px] font-black ${!isOn ? 'text-white' : 'text-zinc-600'}`}>0</span>
+                    </div>
+                    <span className="text-[9px] font-bold text-white">B{bit}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       </div>
     );
   };
@@ -826,9 +933,9 @@ export default function Z80EduApp() {
           </div>
         </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-[400px_1fr_300px] gap-2 flex-grow min-h-0 overflow-hidden">
+        <div className="grid grid-cols-1 md:grid-cols-[400px_1fr] gap-2 flex-grow min-h-0 overflow-hidden">
           {/* ARCHITECTURE PANEL */}
-          <div className="bg-zinc-900/60 rounded-2xl p-4 border border-zinc-800 flex flex-col gap-4 overflow-y-auto custom-scrollbar shadow-2xl">
+          <div className="bg-zinc-900/60 rounded-2xl p-4 border border-zinc-800 flex flex-col gap-4 overflow-y-auto custom-scrollbar shadow-2xl h-full">
             <h2 className="text-blue-400 font-black text-[10px] tracking-[0.3em] border-b border-zinc-800 pb-1 uppercase text-center italic">
               Core Architecture
             </h2>
@@ -857,115 +964,107 @@ export default function Z80EduApp() {
                 <FlagLamp label="C" bit={0} val={regs.F} desc="Carry" />
               </div>
             </div>
+            <IOPanel />
           </div>
 
-          {/* PROGRAM PANEL */}
-          <div className="bg-zinc-900/60 rounded-2xl p-3 border border-zinc-800 flex flex-col overflow-hidden shadow-2xl">
-            <h2 className="text-yellow-500 font-black text-xl border-b border-yellow-500/30 pb-1 mb-2 text-center italic">
-              PROGRAM
-            </h2>
-            <div className="overflow-y-auto flex-grow font-mono bg-black/60 rounded-xl p-2 custom-scrollbar">
-              {disasm(codeMemory, CODE_BASE).map((l, i) => (
-                <div
-                  key={i}
-                  className={`flex gap-3 px-2 py-1 rounded-lg mb-1 border ${
-                    l.addr === regs.PC
-                      ? 'bg-yellow-500 text-black font-black'
-                      : 'text-zinc-500 border-transparent'
-                  }`}
-                >
-                  <span
-                    className={`text-base shrink-0 font-bold ${
-                      l.addr === regs.PC ? 'text-black' : 'text-yellow-600/60'
-                    }`}
-                  >
-                    {hex4(l.addr)}
-                  </span>
-                  {editingAddr === l.addr ? (
-                    <input
-                      autoFocus
-                      className="bg-white text-black w-full px-1 rounded uppercase font-bold"
-                      value={editVal}
-                      onChange={(e) => setEditVal(e.target.value)}
-                      onBlur={() => handleUpdateCode(l.addr, editVal)}
-                      onKeyDown={(e) =>
-                        e.key === 'Enter' && handleUpdateCode(l.addr, editVal)
-                      }
-                    />
-                  ) : (
-                    <span
-                      className="text-lg tracking-tighter cursor-pointer hover:text-white"
-                      onClick={() => {
-                        setEditingAddr(l.addr);
-                        setEditVal(l.text);
-                      }}
+          <div className="flex flex-col gap-2 min-h-0 overflow-hidden">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_300px] gap-2 flex-grow min-h-0 overflow-hidden">
+              {/* PROGRAM PANEL */}
+              <div className="bg-zinc-900/60 rounded-2xl p-3 border border-zinc-800 flex flex-col overflow-hidden shadow-2xl">
+                <h2 className="text-yellow-500 font-black text-xl border-b border-yellow-500/30 pb-1 mb-2 text-center italic">
+                  PROGRAM
+                </h2>
+                <div className="overflow-y-auto flex-grow font-mono bg-black/60 rounded-xl p-2 custom-scrollbar">
+                  {disasm(codeMemory, CODE_BASE).map((l, i) => (
+                    <div
+                      key={i}
+                      className={`flex gap-3 px-2 py-1 rounded-lg mb-1 border ${
+                        l.addr === regs.PC
+                          ? 'bg-yellow-500 text-black font-black'
+                          : 'text-zinc-500 border-transparent'
+                      }`}
                     >
-                      {l.text}
-                    </span>
-                  )}
+                      <span
+                        className={`text-base shrink-0 font-bold ${
+                          l.addr === regs.PC ? 'text-black' : 'text-yellow-600/60'
+                        }`}
+                      >
+                        {hex4(l.addr)}
+                      </span>
+                      {editingAddr === l.addr ? (
+                        <input
+                          autoFocus
+                          className="bg-white text-black w-full px-1 rounded uppercase font-bold"
+                          value={editVal}
+                          onChange={(e) => setEditVal(e.target.value)}
+                          onBlur={() => handleUpdateCode(l.addr, editVal)}
+                          onKeyDown={(e) =>
+                            e.key === 'Enter' && handleUpdateCode(l.addr, editVal)
+                          }
+                        />
+                      ) : (
+                        <span
+                          className="text-lg tracking-tighter cursor-pointer hover:text-white"
+                          onClick={() => {
+                            setEditingAddr(l.addr);
+                            setEditVal(l.text);
+                          }}
+                        >
+                          {l.text}
+                        </span>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
 
-          {/* RAM PANEL */}
-          <div className="bg-zinc-900/60 rounded-2xl p-3 border border-zinc-800 flex flex-col overflow-hidden shadow-2xl">
-            <h2 className="text-red-500 font-black text-xl border-b border-red-500/30 pb-1 mb-2 text-center italic">
-              RAM
-            </h2>
-            <div className="overflow-y-auto flex-grow font-mono bg-black/60 rounded-xl custom-scrollbar">
-              <table className="w-full border-separate border-spacing-0">
-                <tbody>
-                  {Array.from({ length: 64 }).map((_, i) => {
-                    const addr = DATA_BASE + i;
-                    const isTouched = writes.includes(addr);
-                    return (
-                      <tr key={i} className={isTouched ? 'bg-red-900/40' : ''}>
-                        <td
-                          className={`px-3 py-1 text-sm font-bold ${
-                            isTouched ? 'text-red-300' : 'text-zinc-600'
-                          }`}
-                        >
-                          {hex4(addr)}
-                        </td>
-                        <td
-                          className={`px-3 py-1 text-right text-lg font-black ${
-                            isTouched ? 'text-white' : 'text-zinc-300'
-                          }`}
-                        >
-                          {hex2(dataMemory[addr])}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              {/* RAM PANEL */}
+              <div className="bg-zinc-900/60 rounded-2xl p-3 border border-zinc-800 flex flex-col overflow-hidden shadow-2xl">
+                <h2 className="text-red-500 font-black text-xl border-b border-red-500/30 pb-1 mb-2 text-center italic">
+                  RAM
+                </h2>
+                <div className="overflow-y-auto flex-grow font-mono bg-black/60 rounded-xl custom-scrollbar">
+                  <table className="w-full border-separate border-spacing-0">
+                    <tbody>
+                      {Array.from({ length: 64 }).map((_, i) => {
+                        const addr = DATA_BASE + i;
+                        const isTouched = writes.includes(addr);
+                        return (
+                          <tr key={i} className={isTouched ? 'bg-red-900/40' : ''}>
+                            <td
+                              className={`px-3 py-1 text-sm font-bold ${
+                                isTouched ? 'text-red-300' : 'text-zinc-600'
+                              }`}
+                            >
+                              {hex4(addr)}
+                            </td>
+                            <td
+                              className={`px-3 py-1 text-right text-lg font-black ${
+                                isTouched ? 'text-white' : 'text-zinc-300'
+                              }`}
+                            >
+                              {hex2(dataMemory[addr])}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-zinc-900 px-5 py-3 rounded-xl border border-zinc-800 flex justify-center shrink-0">
+              <button
+                onClick={step}
+                className="bg-blue-600 hover:bg-blue-500 text-white font-black px-12 py-3 rounded-xl text-2xl border-b-4 border-blue-800 active:translate-y-1 transition-all w-full max-w-xl"
+              >
+                STEP EXECUTE
+              </button>
             </div>
           </div>
         </div>
 
-        <footer className="flex items-center justify-between bg-zinc-900 px-5 py-3 rounded-xl border border-zinc-800 shrink-0">
-          <div className="flex gap-8 font-mono">
-            <div className="flex flex-col">
-              <span className="text-[8px] text-zinc-500 font-black">PC</span>
-              <span className="text-yellow-500 text-2xl font-black">
-                {hex4(regs.PC)}
-              </span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[8px] text-zinc-500 font-black">OP</span>
-              <span className="text-blue-400 text-2xl font-black">
-                {hex2(codeMemory[regs.PC])}
-              </span>
-            </div>
-          </div>
-          <button
-            onClick={step}
-            className="bg-blue-600 hover:bg-blue-500 text-white font-black px-12 py-3 rounded-xl text-2xl border-b-4 border-blue-800 active:translate-y-1 transition-all"
-          >
-            STEP EXECUTE
-          </button>
-        </footer>
       </div>
       <style>{`.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #27272a; border-radius: 10px; }`}</style>
     </div>
