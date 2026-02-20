@@ -883,8 +883,21 @@ export default function App() {
     <div className="h-screen bg-zinc-950 text-zinc-200 p-2 font-sans flex flex-col items-center overflow-x-auto overflow-y-hidden">
       <div className="w-full min-w-[1400px] max-w-[2400px] h-full flex flex-col space-y-2">
         <header className="flex justify-between items-center bg-zinc-900 px-4 py-2 rounded-xl border border-zinc-800 shadow-xl shrink-0 h-14">
-          <h1 className="text-2xl font-black text-white italic tracking-tighter shrink-0">
-            Z80<span className="text-blue-500">LAB</span>
+          <h1 className="text-2xl font-black text-white italic tracking-tighter shrink-0 flex items-center gap-2">
+            Z 8 0<span className="text-blue-500">LAB</span>
+            <div className="flex items-center gap-2 ml-4 border-l border-zinc-800 pl-4">
+              <a
+                href="https://x.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-zinc-500 hover:text-white transition-colors"
+                title="X (Twitter)"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                </svg>
+              </a>
+            </div>
           </h1>
           <div className="flex items-center gap-3 h-full">
             <button
