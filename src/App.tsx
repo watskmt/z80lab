@@ -424,7 +424,7 @@ export default function Z80EduApp() {
       <div className="w-full max-w-[1440px] h-full flex flex-col space-y-2">
         <header className="flex justify-between items-center bg-zinc-900 px-4 py-2 rounded-xl border border-zinc-800 shadow-xl shrink-0 h-14">
           <h1 className="text-2xl font-black text-white italic tracking-tighter shrink-0">
-            Z 8 0<span className="text-blue-500">-LAB-</span>
+            Z80<span className="text-blue-500">LAB</span>
           </h1>
           <div className="flex items-center gap-3 h-full">
             <button
