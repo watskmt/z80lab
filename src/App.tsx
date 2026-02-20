@@ -310,7 +310,7 @@ const initialRegs = {
   IX: 0,
   IY: 0,
   PC: CODE_BASE,
-  SP: 0xfffe,
+  SP: 0xbfff,
   I: 0,
   R: 0,
   A2: 0,
@@ -335,6 +335,7 @@ export default function App() {
   const [ioIn, setIoIn] = useState(0);
   const [prevRegs, setPrevRegs] = useState(initialRegs);
   const [regs, setRegs] = useState(initialRegs);
+  const [stackBaseAddr, setStackBaseAddr] = useState(initialRegs.SP);
   const [writes, setWrites] = useState<number[]>([]);
   const [editingAddr, setEditingAddr] = useState<number | null>(null);
   const [editVal, setEditVal] = useState('');
@@ -346,6 +347,7 @@ export default function App() {
     setIoIn(0);
     setRegs(initialRegs);
     setPrevRegs(initialRegs);
+    setStackBaseAddr(initialRegs.SP);
     setWrites([]);
   };
 
@@ -878,8 +880,8 @@ export default function App() {
   };
 
   return (
-    <div className="h-screen bg-zinc-950 text-zinc-200 p-2 font-sans flex flex-col items-center overflow-hidden">
-      <div className="w-full max-w-[1440px] h-full flex flex-col space-y-2">
+    <div className="h-screen bg-zinc-950 text-zinc-200 p-2 font-sans flex flex-col items-center overflow-x-auto overflow-y-hidden">
+      <div className="w-full min-w-[1400px] max-w-[2400px] h-full flex flex-col space-y-2">
         <header className="flex justify-between items-center bg-zinc-900 px-4 py-2 rounded-xl border border-zinc-800 shadow-xl shrink-0 h-14">
           <h1 className="text-2xl font-black text-white italic tracking-tighter shrink-0">
             Z80<span className="text-blue-500">LAB</span>
@@ -909,7 +911,8 @@ export default function App() {
               onChange={(e) => {
                 const prog = samplePrograms[e.target.value];
                 if (prog) {
-                  setCodeMemory(prog());
+                  const newMem = prog();
+                  setCodeMemory(newMem);
                   resetState();
                 }
               }}
@@ -950,8 +953,10 @@ export default function App() {
               <BoldReg label="L" val={regs.L} prevVal={prevRegs.L} />
               <BoldReg label="IX" val={regs.IX} prevVal={prevRegs.IX} size={4} />
               <BoldReg label="IY" val={regs.IY} prevVal={prevRegs.IY} size={4} />
-              <BoldReg label="SP" val={regs.SP} prevVal={prevRegs.SP} size={4} />
-              <BoldReg label="PC" val={regs.PC} prevVal={prevRegs.PC} size={4} />
+              <div className="grid grid-cols-2 col-span-2 gap-2">
+                <BoldReg label="SP" val={regs.SP} prevVal={prevRegs.SP} size={4} />
+                <BoldReg label="PC" val={regs.PC} prevVal={prevRegs.PC} size={4} />
+              </div>
             </div>
             <div className="bg-black/60 p-3 rounded-xl border border-zinc-800">
               <div className="flex gap-1">
@@ -968,9 +973,9 @@ export default function App() {
           </div>
 
           <div className="flex flex-col gap-2 min-h-0 overflow-hidden">
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_300px] gap-2 flex-grow min-h-0 overflow-hidden">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_300px_300px] gap-2 flex-grow min-h-0 overflow-hidden">
               {/* PROGRAM PANEL */}
-              <div className="bg-zinc-900/60 rounded-2xl p-3 border border-zinc-800 flex flex-col overflow-hidden shadow-2xl">
+              <div className="bg-zinc-900/60 rounded-2xl p-3 border border-zinc-800 flex flex-col overflow-hidden shadow-2xl min-w-[400px]">
                 <h2 className="text-yellow-500 font-black text-xl border-b border-yellow-500/30 pb-1 mb-2 text-center italic">
                   PROGRAM
                 </h2>
@@ -1026,7 +1031,7 @@ export default function App() {
                 <div className="overflow-y-auto flex-grow font-mono bg-black/60 rounded-xl custom-scrollbar">
                   <table className="w-full border-separate border-spacing-0">
                     <tbody>
-                      {Array.from({ length: 64 }).map((_, i) => {
+                      {Array.from({ length: 128 }).map((_, i) => {
                         const addr = DATA_BASE + i;
                         const isTouched = writes.includes(addr);
                         return (
@@ -1044,6 +1049,46 @@ export default function App() {
                               }`}
                             >
                               {hex2(dataMemory[addr])}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* STACK PANEL */}
+              <div className="bg-zinc-900/60 rounded-2xl p-3 border border-zinc-800 flex flex-col overflow-hidden shadow-2xl">
+                <h2 className="text-blue-500 font-black text-xl border-b border-blue-500/30 pb-1 mb-2 text-center italic">
+                  STACK
+                </h2>
+                <div className="overflow-y-auto flex-grow font-mono bg-black/60 rounded-xl custom-scrollbar">
+                  <table className="w-full border-separate border-spacing-0">
+                    <tbody>
+                      {Array.from({ length: 64 }).map((_, i) => {
+                        // stackBaseAddr周辺を表示 (base-4 ～ base+59)
+                        const addr = (stackBaseAddr - 4 + i) & 0xffff;
+                        const isSP = addr === regs.SP;
+                        const isTouched = writes.includes(addr);
+                        return (
+                          <tr key={i} className={`${isSP ? 'bg-blue-600/40' : ''} ${isTouched ? 'border-l-2 border-red-500' : ''}`}>
+                            <td
+                              className={`px-3 py-1 text-sm font-bold ${
+                                isSP ? 'text-blue-300' : isTouched ? 'text-red-300' : 'text-zinc-600'
+                              }`}
+                            >
+                              {hex4(addr)}
+                            </td>
+                            <td
+                              className={`px-3 py-1 text-right text-lg font-black ${
+                                isSP ? 'text-white' : isTouched ? 'text-white' : 'text-zinc-300'
+                              }`}
+                            >
+                              {hex2(dataMemory[addr])}
+                            </td>
+                            <td className="px-1 text-[10px] text-blue-400 font-black">
+                              {isSP ? '←SP' : ''}
                             </td>
                           </tr>
                         );
