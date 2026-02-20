@@ -35,6 +35,6 @@ jobs:
           lftp -e "set ftp:ssl-allow yes; \
           open -u ${{ secrets.XREA_USER }},${{ secrets.XREA_PASS }} ${{ secrets.XREA_HOST }}; \
           mirror -R ./dist/ /public_html/ \
-          --ignore-time --delete --parallel=10 \
+          --ignore-time --parallel=10 \
           --exclude .git/; \
           quit"
