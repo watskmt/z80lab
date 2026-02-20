@@ -35,6 +35,6 @@ jobs:
           lftp -e "set ftp:ssl-allow yes; \
           open -u ${{ secrets.XREA_USER }},${{ secrets.XREA_PASS }} ${{ secrets.XREA_HOST }}; \
           mirror -R ./dist/ ~/domains/z80lab.com/public_html \
-          --parallel=10 \
+          --delete --parallel=10 \
           --exclude .git/; \
           quit"
