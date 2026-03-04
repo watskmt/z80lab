@@ -52,6 +52,7 @@ export const initialRegs = {
   SP: 0xbfff,
   I: 0,
   R: 0,
+  IM: 0,
   A2: 0,
   F2: 0,
   B2: 0,

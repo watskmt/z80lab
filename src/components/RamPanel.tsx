@@ -8,6 +8,11 @@ interface RamPanelProps {
   writes: number[];
   DATA_BASE: number;
   highlightAddr?: number;
+  editingAddr: number | null;
+  editVal: string;
+  setEditingAddr: (addr: number | null) => void;
+  setEditVal: (val: string) => void;
+  handleUpdate: (addr: number, val: string) => void;
 }
 
 const PanelContainer = styled.div`
@@ -95,12 +100,39 @@ const NewValue = styled.span`
   font-weight: 900;
 `;
 
+const ValueInput = styled.input`
+  background-color: #ffffff;
+  color: #000000;
+  width: 100%;
+  padding: 0 0.125rem;
+  border-radius: 0.125rem;
+  text-transform: uppercase;
+  font-weight: 700;
+  font-size: 14px;
+  border: none;
+  outline: none;
+  text-align: right;
+`;
+
+const ValueText = styled.span`
+  cursor: pointer;
+
+  &:hover {
+    color: #ffffff;
+  }
+`;
+
 export const RamPanel: React.FC<RamPanelProps> = ({
   dataMemory,
   prevDataMemory,
   writes,
   DATA_BASE,
   highlightAddr,
+  editingAddr,
+  editVal,
+  setEditingAddr,
+  setEditVal,
+  handleUpdate,
 }) => {
   return (
     <PanelContainer>
@@ -120,14 +152,32 @@ export const RamPanel: React.FC<RamPanelProps> = ({
                 <Row key={i} touched={isTouched} isHighlight={isHighlight}>
                   <AddrCell touched={isTouched}>{hex4(addr)}</AddrCell>
                   <ValCell touched={isTouched}>
-                    {isChanged ? (
-                      <TransitionText>
-                        <OldValue>{hex2(prevVal)}</OldValue>
-                        <Arrow>→</Arrow>
-                        <NewValue>{hex2(currentVal)}</NewValue>
-                      </TransitionText>
+                    {editingAddr === addr ? (
+                      <ValueInput
+                        autoFocus
+                        value={editVal}
+                        onChange={(e) => setEditVal(e.target.value)}
+                        onBlur={() => handleUpdate(addr, editVal)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleUpdate(addr, editVal)}
+                      />
+                    ) : isChanged ? (
+                      <ValueText onClick={() => {
+                        setEditingAddr(addr);
+                        setEditVal(hex2(currentVal));
+                      }}>
+                        <TransitionText>
+                          <OldValue>{hex2(prevVal)}</OldValue>
+                          <Arrow>→</Arrow>
+                          <NewValue>{hex2(currentVal)}</NewValue>
+                        </TransitionText>
+                      </ValueText>
                     ) : (
-                      hex2(currentVal)
+                      <ValueText onClick={() => {
+                        setEditingAddr(addr);
+                        setEditVal(hex2(currentVal));
+                      }}>
+                        {hex2(currentVal)}
+                      </ValueText>
                     )}
                   </ValCell>
                 </Row>

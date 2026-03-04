@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import { hex2 } from '../constants';
 
@@ -259,7 +260,26 @@ const BitLabel = styled.span`
   margin-top: 2px;
 `;
 
+const ModeBadge = styled.button<{ active: boolean }>`
+  font-size: 8px;
+  font-weight: 800;
+  padding: 1px 4px;
+  border-radius: 4px;
+  border: 1px solid ${props => props.active ? '#c084fc' : '#47474a'};
+  background: ${props => props.active ? 'rgba(192, 132, 252, 0.2)' : 'transparent'};
+  color: ${props => props.active ? '#c084fc' : '#a1a1aa'};
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: #c084fc;
+    color: #c084fc;
+  }
+`;
+
 export const IOPanel = ({ ioOut, ioIn, setIoIn }: IOPanelProps) => {
+  const [mode, setMode] = useState<'mmio' | 'io'>('mmio');
   const toggleBit = (bit: number) => {
     setIoIn(ioIn ^ (1 << bit));
   };
@@ -340,22 +360,26 @@ export const IOPanel = ({ ioOut, ioIn, setIoIn }: IOPanelProps) => {
 
   return (
     <PanelContainer>
-      <Title>Memory Mapped I/O</Title>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '4px', marginBottom: '4px' }}>
+        <ModeBadge active={mode === 'mmio'} onClick={() => setMode('mmio')}>MMIO</ModeBadge>
+        <ModeBadge active={mode === 'io'} onClick={() => setMode('io')}>Standard IO</ModeBadge>
+      </div>
+      <Title>{mode === 'mmio' ? 'Memory Mapped I/O' : 'Standard I/O Port'}</Title>
 
       <ControlGroup>
-        {/* OUTPUT LAMPS (0x8000) */}
+        {/* OUTPUT LAMPS */}
         <SubPanel>
           <HeaderRow>
-            <SubTitle>Lamps (0x8000)</SubTitle>
+            <SubTitle>{mode === 'mmio' ? 'Lamps (0x8000)' : 'Port 0 (OUT)'}</SubTitle>
             <HexValue>{hex2(ioOut)}</HexValue>
           </HeaderRow>
           {renderLamps()}
         </SubPanel>
 
-        {/* INPUT SWITCHES (0x8001) */}
+        {/* INPUT SWITCHES */}
         <SubPanel>
           <HeaderRow>
-            <SubTitle>Switches (0x8001)</SubTitle>
+            <SubTitle>{mode === 'mmio' ? 'Switches (0x8001)' : 'Port 1 (IN)'}</SubTitle>
             <HexValue>{hex2(ioIn)}</HexValue>
           </HeaderRow>
           {renderSwitches()}

@@ -264,6 +264,10 @@ export default function Main() {
   const [writes, setWrites] = useState<number[]>([]);
   const [editingAddr, setEditingAddr] = useState<number | null>(null);
   const [editVal, setEditVal] = useState('');
+  const [editingRamAddr, setEditingRamAddr] = useState<number | null>(null);
+  const [editRamVal, setEditRamVal] = useState('');
+  const [editingStackAddr, setEditingStackAddr] = useState<number | null>(null);
+  const [editStackVal, setEditStackVal] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [highlightWrite, setHighlightWrite] = useState<{
     sourceAddr: number;
@@ -293,6 +297,28 @@ export default function Main() {
       setCodeMemory(newMem);
     }
     setEditingAddr(null);
+  };
+
+  const handleUpdateRam = (addr: number, text: string) => {
+    const val = parseInt(text, 16);
+    if (!isNaN(val) && val >= 0 && val <= 0xff) {
+      const newMem = new Uint8Array(dataMemory);
+      newMem[addr] = val;
+      setDataMemory(newMem);
+      setPrevDataMemory(new Uint8Array(dataMemory));
+    }
+    setEditingRamAddr(null);
+  };
+
+  const handleUpdateStack = (addr: number, text: string) => {
+    const val = parseInt(text, 16);
+    if (!isNaN(val) && val >= 0 && val <= 0xff) {
+      const newMem = new Uint8Array(dataMemory);
+      newMem[addr] = val;
+      setDataMemory(newMem);
+      setPrevDataMemory(new Uint8Array(dataMemory));
+    }
+    setEditingStackAddr(null);
   };
 
   const saveAsm = () => {
@@ -464,6 +490,11 @@ export default function Main() {
         case 0x04: r.B = add8(r.B, 1); r.F = (r.F & C_FLAG) | (SZP_TABLE[r.B] & ~C_FLAG); break;
         case 0x05: r.B = sub8(r.B, 1); r.F = (r.F & C_FLAG) | (SZP_TABLE[r.B] & ~C_FLAG) | N_FLAG; break;
         case 0x06: r.B = m[r.PC++]; break;
+        case 0x08: { // EX AF,AF'
+          const tmp = r.A; r.A = r.A2; r.A2 = tmp;
+          const tmp2 = r.F; r.F = r.F2; r.F2 = tmp2;
+          break;
+        }
         case 0x09: {
           const hl = (r.H << 8) | r.L; const bc = (r.B << 8) | r.C; const res = hl + bc;
           r.F = (r.F & ~(N_FLAG | C_FLAG | H_FLAG)) | (res > 0xffff ? C_FLAG : 0);
@@ -551,6 +582,15 @@ export default function Main() {
         case 0xd6: r.A = sub8(r.A, m[r.PC++]); break;
         case 0xd7: push(r.PC); r.PC = 0x10; break;
         case 0xd8: if (r.F & C_FLAG) r.PC = pop(); break;
+        case 0xd9: { // EXX
+          let tmp = r.B; r.B = r.B2; r.B2 = tmp;
+          tmp = r.C; r.C = r.C2; r.C2 = tmp;
+          tmp = r.D; r.D = r.D2; r.D2 = tmp;
+          tmp = r.E; r.E = r.E2; r.E2 = tmp;
+          tmp = r.H; r.H = r.H2; r.H2 = tmp;
+          tmp = r.L; r.L = r.L2; r.L2 = tmp;
+          break;
+        }
         case 0xda: { const adr = m[r.PC++] | (m[r.PC++] << 8); if (r.F & C_FLAG) r.PC = adr; break; }
         case 0xdc: { const adr = m[r.PC++] | (m[r.PC++] << 8); if (r.F & C_FLAG) { push(r.PC); r.PC = adr; } break; }
         case 0xde: r.A = sub8(r.A, m[r.PC++], (r.F & C_FLAG)); break;
@@ -622,14 +662,114 @@ export default function Main() {
           break;
         }
 
+        case 0xdb: { // IN A,(n)
+          const port = m[r.PC++];
+          if (port === 1) { // Port 1: Input Switch
+            r.A = ioIn;
+          } else {
+            r.A = 0;
+          }
+          break;
+        }
+        case 0xd3: { // OUT (n),A
+          const port = m[r.PC++];
+          if (port === 0) { // Port 0: Output Lamp
+            setIoOut(r.A);
+          }
+          break;
+        }
         case 0xed: {
           const edOp = m[r.PC++];
           switch (edOp) {
-            case 0x44: r.A = 0; r.F = SZP_TABLE[r.A]; break;
+            // NEG - Negate A
+            case 0x44: r.A = sub8(0, r.A); break;
+            // IM 0, IM 1, IM 2
+            case 0x46: r.IM = 0; break;
+            case 0x56: r.IM = 1; break;
+            case 0x5e: r.IM = 2; break;
+            // LD I,A / LD R,A / LD A,I / LD A,R
             case 0x47: r.I = r.A; break;
             case 0x4f: r.R = r.A; break;
-            case 0x56: break;
-            case 0x5e: break;
+            case 0x57: r.A = r.I; r.F = (r.F & C_FLAG) | SZP_TABLE[r.A]; break;
+            case 0x5f: r.A = r.R; r.F = (r.F & C_FLAG) | SZP_TABLE[r.A]; break;
+            // IN r, (C) / OUT (C), r
+            case 0x40: case 0x48: case 0x50: case 0x58: case 0x60: case 0x68: case 0x78: {
+              const port = r.C;
+              let val = 0;
+              if (port === 1) val = ioIn;
+              setReg((edOp >> 3) & 7, val);
+              r.F = (r.F & C_FLAG) | SZP_TABLE[getReg((edOp >> 3) & 7)];
+              break;
+            }
+            case 0x41: case 0x49: case 0x51: case 0x59: case 0x61: case 0x69: case 0x79: {
+              const port = r.C;
+              if (port === 0) {
+                setIoOut(getReg((edOp >> 3) & 7));
+              }
+              break;
+            }
+            // 16-bit ADC HL,ss
+            case 0x4a: { // ADC HL,BC
+              const hl = (r.H << 8) | r.L; const bc = (r.B << 8) | r.C; const carry = (r.F & C_FLAG) ? 1 : 0;
+              const res = hl + bc + carry;
+              r.F = (res > 0xffff ? C_FLAG : 0) | (res === 0 ? Z_FLAG : 0) | ((res & 0x8000) ? S_FLAG : 0);
+              r.H = (res >> 8) & 0xff; r.L = res & 0xff;
+              break;
+            }
+            case 0x5a: { // ADC HL,DE
+              const hl = (r.H << 8) | r.L; const de = (r.D << 8) | r.E; const carry = (r.F & C_FLAG) ? 1 : 0;
+              const res = hl + de + carry;
+              r.F = (res > 0xffff ? C_FLAG : 0) | (res === 0 ? Z_FLAG : 0) | ((res & 0x8000) ? S_FLAG : 0);
+              r.H = (res >> 8) & 0xff; r.L = res & 0xff;
+              break;
+            }
+            case 0x6a: { // ADC HL,HL
+              const hl = (r.H << 8) | r.L; const carry = (r.F & C_FLAG) ? 1 : 0;
+              const res = hl + hl + carry;
+              r.F = (res > 0xffff ? C_FLAG : 0) | (res === 0 ? Z_FLAG : 0) | ((res & 0x8000) ? S_FLAG : 0);
+              r.H = (res >> 8) & 0xff; r.L = res & 0xff;
+              break;
+            }
+            case 0x7a: { // ADC HL,SP
+              const hl = (r.H << 8) | r.L; const carry = (r.F & C_FLAG) ? 1 : 0;
+              const res = hl + r.SP + carry;
+              r.F = (res > 0xffff ? C_FLAG : 0) | (res === 0 ? Z_FLAG : 0) | ((res & 0x8000) ? S_FLAG : 0);
+              r.H = (res >> 8) & 0xff; r.L = res & 0xff;
+              break;
+            }
+            // 16-bit SBC HL,ss
+            case 0x42: { // SBC HL,BC
+              const hl = (r.H << 8) | r.L; const bc = (r.B << 8) | r.C; const carry = (r.F & C_FLAG) ? 1 : 0;
+              const res = hl - bc - carry;
+              r.F = (res < 0 ? C_FLAG : 0) | N_FLAG | ((res & 0xffff) === 0 ? Z_FLAG : 0) | ((res & 0x8000) ? S_FLAG : 0);
+              r.H = (res >> 8) & 0xff; r.L = res & 0xff;
+              break;
+            }
+            case 0x52: { // SBC HL,DE
+              const hl = (r.H << 8) | r.L; const de = (r.D << 8) | r.E; const carry = (r.F & C_FLAG) ? 1 : 0;
+              const res = hl - de - carry;
+              r.F = (res < 0 ? C_FLAG : 0) | N_FLAG | ((res & 0xffff) === 0 ? Z_FLAG : 0) | ((res & 0x8000) ? S_FLAG : 0);
+              r.H = (res >> 8) & 0xff; r.L = res & 0xff;
+              break;
+            }
+            case 0x62: { // SBC HL,HL
+              const hl = (r.H << 8) | r.L; const carry = (r.F & C_FLAG) ? 1 : 0;
+              const res = hl - hl - carry;
+              r.F = (res < 0 ? C_FLAG : 0) | N_FLAG | ((res & 0xffff) === 0 ? Z_FLAG : 0) | ((res & 0x8000) ? S_FLAG : 0);
+              r.H = (res >> 8) & 0xff; r.L = res & 0xff;
+              break;
+            }
+            case 0x72: { // SBC HL,SP
+              const hl = (r.H << 8) | r.L; const carry = (r.F & C_FLAG) ? 1 : 0;
+              const res = hl - r.SP - carry;
+              r.F = (res < 0 ? C_FLAG : 0) | N_FLAG | ((res & 0xffff) === 0 ? Z_FLAG : 0) | ((res & 0x8000) ? S_FLAG : 0);
+              r.H = (res >> 8) & 0xff; r.L = res & 0xff;
+              break;
+            }
+            // RETI / RETN
+            case 0x4d: r.PC = pop(); break; // RETI
+            case 0x45: r.PC = pop(); break; // RETN
+            // RRD / RLD
             case 0x67: {
               const hlVal = get8((r.H << 8) | r.L); const lowA = r.A & 0x0f;
               r.A = (r.A & 0xf0) | (hlVal & 0x0f);
@@ -642,7 +782,8 @@ export default function Main() {
               set8((r.H << 8) | r.L, (hlVal << 4) | lowA);
               r.F = (r.F & C_FLAG) | SZP_TABLE[r.A]; break;
             }
-            case 0xb0: {
+            // Block instructions
+            case 0xb0: { // LDIR
               let src = (r.H << 8) | r.L; let dst = (r.D << 8) | r.E; let len = (r.B << 8) | r.C;
               if (len > 0) {
                 set8(dst, get8(src));
@@ -653,6 +794,87 @@ export default function Main() {
               }
               break;
             }
+            case 0xb8: { // LDDR
+              let src = (r.H << 8) | r.L; let dst = (r.D << 8) | r.E; let len = (r.B << 8) | r.C;
+              if (len > 0) {
+                set8(dst, get8(src));
+                src = (src - 1) & 0xffff; dst = (dst - 1) & 0xffff; len = (len - 1) & 0xffff;
+                r.H = src >> 8; r.L = src & 0xff; r.D = dst >> 8; r.E = dst & 0xff; r.B = len >> 8; r.C = len & 0xff;
+                if (len > 0) r.PC -= 2;
+                r.F &= ~(N_FLAG | H_FLAG | PV_FLAG);
+              }
+              break;
+            }
+            case 0xb1: { // CPIR
+              let addr = (r.H << 8) | r.L; let len = (r.B << 8) | r.C;
+              if (len > 0) {
+                const val = get8(addr);
+                cp8(r.A, val);
+                addr = (addr + 1) & 0xffff; len = (len - 1) & 0xffff;
+                r.H = addr >> 8; r.L = addr & 0xff; r.B = len >> 8; r.C = len & 0xff;
+                if (len > 0 && !(r.F & Z_FLAG)) r.PC -= 2;
+              }
+              break;
+            }
+            case 0xb9: { // CPDR
+              let addr = (r.H << 8) | r.L; let len = (r.B << 8) | r.C;
+              if (len > 0) {
+                const val = get8(addr);
+                cp8(r.A, val);
+                addr = (addr - 1) & 0xffff; len = (len - 1) & 0xffff;
+                r.H = addr >> 8; r.L = addr & 0xff; r.B = len >> 8; r.C = len & 0xff;
+                if (len > 0 && !(r.F & Z_FLAG)) r.PC -= 2;
+              }
+              break;
+            }
+            case 0xa2: { // INIR
+              let addr = (r.H << 8) | r.L;
+              const port = r.C;
+              const val = (port === 1) ? ioIn : 0;
+              set8(addr, val);
+              r.B = (r.B - 1) & 0xff;
+              addr = (addr + 1) & 0xffff;
+              r.H = addr >> 8; r.L = addr & 0xff;
+              r.F = (r.B === 0) ? Z_FLAG : 0;
+              if (r.B > 0) r.PC -= 2;
+              break;
+            }
+            case 0xaa: { // INDR
+              let addr = (r.H << 8) | r.L;
+              const port = r.C;
+              const val = (port === 1) ? ioIn : 0;
+              set8(addr, val);
+              r.B = (r.B - 1) & 0xff;
+              addr = (addr - 1) & 0xffff;
+              r.H = addr >> 8; r.L = addr & 0xff;
+              r.F = (r.B === 0) ? Z_FLAG : 0;
+              if (r.B > 0) r.PC -= 2;
+              break;
+            }
+            case 0xa3: { // OTIR
+              let addr = (r.H << 8) | r.L;
+              const port = r.C;
+              const val = get8(addr);
+              if (port === 0) setIoOut(val);
+              r.B = (r.B - 1) & 0xff;
+              addr = (addr + 1) & 0xffff;
+              r.H = addr >> 8; r.L = addr & 0xff;
+              r.F = (r.B === 0) ? Z_FLAG : 0;
+              if (r.B > 0) r.PC -= 2;
+              break;
+            }
+            case 0xab: { // OTDR
+              let addr = (r.H << 8) | r.L;
+              const port = r.C;
+              const val = get8(addr);
+              if (port === 0) setIoOut(val);
+              r.B = (r.B - 1) & 0xff;
+              addr = (addr - 1) & 0xffff;
+              r.H = addr >> 8; r.L = addr & 0xff;
+              r.F = (r.B === 0) ? Z_FLAG : 0;
+              if (r.B > 0) r.PC -= 2;
+              break;
+            }
             default: break;
           }
           break;
@@ -660,8 +882,40 @@ export default function Main() {
         case 0xdd: case 0xfd: {
           const isIY = (op === 0xfd);
           const subOp = m[r.PC++];
-          if (subOp === 0x21) { r[isIY ? 'IY' : 'IX'] = m[r.PC++] | (m[r.PC++] << 8); }
-          else if (subOp === 0x36) { let d = m[r.PC++]; if (d > 127) d -= 256; set8((r[isIY ? 'IY' : 'IX'] + d), m[r.PC++]); }
+          const idxReg = isIY ? 'IY' : 'IX';
+
+          if (subOp === 0x21) {
+            // LD IX/IY, nn
+            r[idxReg] = m[r.PC++] | (m[r.PC++] << 8);
+          } else if (subOp === 0x36) {
+            // LD (IX/IY+d), n
+            let d = m[r.PC++];
+            if (d > 127) d -= 256;
+            const n = m[r.PC++];
+            set8((r[idxReg] + d) & 0xffff, n, CODE_BASE);
+          } else if (subOp === 0x7e) {
+            // LD A, (IX/IY+d)
+            let d = m[r.PC++];
+            if (d > 127) d -= 256;
+            r.A = get8((r[idxReg] + d) & 0xffff);
+          } else if (subOp === 0x77) {
+            // LD (IX/IY+d), A
+            let d = m[r.PC++];
+            if (d > 127) d -= 256;
+            set8((r[idxReg] + d) & 0xffff, r.A, CODE_BASE);
+          } else if (subOp === 0x23) {
+            // INC IX/IY
+            r[idxReg] = (r[idxReg] + 1) & 0xffff;
+          } else if (subOp === 0x2b) {
+            // DEC IX/IY
+            r[idxReg] = (r[idxReg] - 1) & 0xffff;
+          } else if (subOp === 0xe5) {
+            // PUSH IX/IY
+            push(r[idxReg]);
+          } else if (subOp === 0xe1) {
+            // POP IX/IY
+            r[idxReg] = pop();
+          }
           break;
         }
 
@@ -769,6 +1023,11 @@ export default function Main() {
                   writes={writes}
                   DATA_BASE={DATA_BASE}
                   highlightAddr={highlightWrite?.destAddr}
+                  editingAddr={editingRamAddr}
+                  editVal={editRamVal}
+                  setEditingAddr={setEditingRamAddr}
+                  setEditVal={setEditRamVal}
+                  handleUpdate={handleUpdateRam}
                 />
 
                 <StackPanel
@@ -777,6 +1036,11 @@ export default function Main() {
                   dataMemory={dataMemory}
                   prevDataMemory={prevDataMemory}
                   writes={writes}
+                  editingAddr={editingStackAddr}
+                  editVal={editStackVal}
+                  setEditingAddr={setEditingStackAddr}
+                  setEditVal={setEditStackVal}
+                  handleUpdate={handleUpdateStack}
                 />
               </ContentGrid>
 

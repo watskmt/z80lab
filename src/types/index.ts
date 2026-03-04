@@ -13,6 +13,7 @@ export interface Registers {
   SP: number;
   I: number;
   R: number;
+  IM: number;
   A2: number;
   F2: number;
   B2: number;
