@@ -1,6 +1,20 @@
-# React + TypeScript + Vite
+# Z80 LAB - Z80 Emulator and Learning Tool
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Z80命令の実行、メモリマップドIO、標準IOをシミュレートできる学習用エミュレータです。
+
+## 主な機能
+- **Z80エミュレーション**: 主要な命令セットをサポート。
+- **I/Oパネル**: 
+  - 出力ランプ (Port 0 / 0x8000)
+  - 入力スイッチ (Port 1 / 0x8001)
+  - MMIOとStandard IOの表示切り替え。
+- **AIサンプル生成**: ChatGPT (OpenAI API) を使用して、やりたいことからZ80アセンブリコードを自動生成。
+
+## AIサンプル生成の使い方
+1. エディタ下の「AI Sample Generator」パネルにある歯車アイコンをクリック。
+2. OpenAIのAPIキーを入力（ブラウザのlocalStorageに保存されます）。
+3. テキストボックスに「スイッチの状態をランプにコピーするループ」などのやりたい内容を入力。
+4. 「GENERATE & LOAD」ボタンを押すと、コードが生成され、エミュレータにロードされます。
 
 Currently, two official plugins are available:
 

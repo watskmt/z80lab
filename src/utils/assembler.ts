@@ -2,7 +2,8 @@ import { REGS_MAP, REGS_LIST, hex4, hex2, MEM_SIZE } from '../constants';
 
 // ===== アセンブラ =====
 export const assembleInstruction = (text: string, currentAddr: number): number[] => {
-  const s = text.toUpperCase().trim();
+  const lineWithoutComment = text.split(';')[0];
+  const s = lineWithoutComment.toUpperCase().trim();
   if (!s || s === '-' || s.startsWith('DB')) return [];
 
   const compact = s.replace(/\s+/g, '');
@@ -32,10 +33,11 @@ export const assembleInstruction = (text: string, currentAddr: number): number[]
   }
 
   // LD r, n
-  const ldRnMatch = compact.match(/^LD([A-EHL]|B|C|D|E|H|L|A),([0-9A-F]+)H?$/);
+  const ldRnMatch = compact.match(/^LD([A-EHL]|B|C|D|E|H|L|A),([0-9A-F]+H?|[0-9]+)$/);
   if (ldRnMatch) {
     const r = REGS_MAP[ldRnMatch[1]];
-    const n = parseInt(ldRnMatch[2], 16);
+    const valStr = ldRnMatch[2];
+    const n = valStr.endsWith('H') ? parseInt(valStr, 16) : (valStr.match(/^[0-9]+$/) ? parseInt(valStr, 10) : parseInt(valStr, 16));
     return [0x06 | (r << 3), n & 0xff];
   }
 
@@ -57,10 +59,11 @@ export const assembleInstruction = (text: string, currentAddr: number): number[]
   }
 
   // LD HL, nn / LD BC, nn / LD DE, nn / LD SP, nn
-  const ldRRnnMatch = compact.match(/^LD(HL|BC|DE|SP),([0-9A-F]+)H?$/);
+  const ldRRnnMatch = compact.match(/^LD(HL|BC|DE|SP),([0-9A-F]+H?|[0-9]+)$/);
   if (ldRRnnMatch) {
     const rr = ldRRnnMatch[1];
-    const nn = parseInt(ldRRnnMatch[2], 16);
+    const valStr = ldRRnnMatch[2];
+    const nn = valStr.endsWith('H') ? parseInt(valStr, 16) : (valStr.match(/^[0-9]+$/) ? parseInt(valStr, 10) : parseInt(valStr, 16));
     const op = rr === 'BC' ? 0x01 : rr === 'DE' ? 0x11 : rr === 'HL' ? 0x21 : 0x31;
     return [op, nn & 0xff, (nn >> 8) & 0xff];
   }
@@ -94,23 +97,35 @@ export const assembleInstruction = (text: string, currentAddr: number): number[]
   // LD (HL), A / LD A, (HL)
   if (compact === 'LD(HL),A') return [0x77];
   if (compact === 'LDA,(HL)') return [0x7e];
+  if (compact === 'LD(BC),A') return [0x02];
+  if (compact === 'LD(DE),A') return [0x12];
+  if (compact === 'LDA,(BC)') return [0x0a];
+  if (compact === 'LDA,(DE)') return [0x1a];
 
   // LD (nn), A / LD A, (nn)
-  const ldMemAMatch = compact.match(/^LD\(([0-9A-F]+)H?\),A$/);
+  const ldMemAMatch = compact.match(/^LD\(([0-9A-F]{3,}|[0-9A-F]{1,2}H?|[0-9A-F]{2})\),A$/);
   if (ldMemAMatch) {
-    const nn = parseInt(ldMemAMatch[1], 16);
-    return [0x32, nn & 0xff, (nn >> 8) & 0xff];
+    const valStr = ldMemAMatch[1];
+    if (valStr !== 'BC' && valStr !== 'DE' && valStr !== 'HL') {
+      const nn = parseInt(valStr, 16);
+      return [0x32, nn & 0xff, (nn >> 8) & 0xff];
+    }
   }
-  const ldAMemMatch = compact.match(/^LDA,\(([0-9A-F]+)H?\)$/);
+  const ldAMemMatch = compact.match(/^LDA,\(([0-9A-F]{3,}|[0-9A-F]{1,2}H?|[0-9A-F]{2})\)$/);
   if (ldAMemMatch) {
-    const nn = parseInt(ldAMemMatch[1], 16);
-    return [0x3a, nn & 0xff, (nn >> 8) & 0xff];
+    const valStr = ldAMemMatch[1];
+    if (valStr !== 'BC' && valStr !== 'DE' && valStr !== 'HL') {
+      const nn = parseInt(valStr, 16);
+      return [0x3a, nn & 0xff, (nn >> 8) & 0xff];
+    }
   }
 
   // LD (HL), n
-  const ldHLnMatch = compact.match(/^LD\(HL\),([0-9A-F]+)H?$/);
+  const ldHLnMatch = compact.match(/^LD\(HL\),([0-9A-F]+H?|[0-9]+)$/);
   if (ldHLnMatch) {
-    return [0x36, parseInt(ldHLnMatch[1], 16) & 0xff];
+    const valStr = ldHLnMatch[1];
+    const n = valStr.endsWith('H') ? parseInt(valStr, 16) : (valStr.match(/^[0-9]+$/) ? parseInt(valStr, 10) : parseInt(valStr, 16));
+    return [0x36, n & 0xff];
   }
 
   // PUSH/POP
@@ -286,6 +301,10 @@ export function disasm(code: Uint8Array, start: number, count = 128) {
         case 0x2e: text = `LD L,${hex2(code[pc + 1])}`; pc += 2; break;
         case 0x31: text = `LD SP,${hex4(code[pc + 1] | (code[pc + 2] << 8))}`; pc += 3; break;
         case 0x3e: text = `LD A,${hex2(code[pc + 1])}`; pc += 2; break;
+        case 0x02: text = 'LD (BC),A'; pc += 1; break;
+        case 0x12: text = 'LD (DE),A'; pc += 1; break;
+        case 0x0a: text = 'LD A,(BC)'; pc += 1; break;
+        case 0x1a: text = 'LD A,(DE)'; pc += 1; break;
         case 0x32: text = `LD (${hex4(code[pc + 1] | (code[pc + 2] << 8))}),A`; pc += 3; break;
         case 0x3a: text = `LD A,(${hex4(code[pc + 1] | (code[pc + 2] << 8))})`; pc += 3; break;
         case 0x36: text = `LD (HL),${hex2(code[pc + 1])}`; pc += 2; break;

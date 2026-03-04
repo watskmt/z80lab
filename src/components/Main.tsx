@@ -22,6 +22,7 @@ import { RegisterPanel } from './RegisterPanel.tsx';
 import { ProgramPanel } from './ProgramPanel';
 import { RamPanel } from './RamPanel';
 import { StackPanel } from './StackPanel';
+import { CodeGenerator } from './CodeGenerator';
 
 
 const MainGrid = styled.div`
@@ -334,25 +335,40 @@ export default function Main() {
     URL.revokeObjectURL(url);
   };
 
+  const loadAsmText = (text: string) => {
+    const lines = text.split('\n');
+    const newMem = new Uint8Array(MEM_SIZE);
+    let currentAddr = CODE_BASE;
+    let hasError = false;
+    lines.forEach((line) => {
+      if (!line.trim() || line.trim().startsWith(';')) return;
+      const bytes = assembleInstruction(line, currentAddr);
+      if (bytes.length > 0) {
+        bytes.forEach((b) => {
+          if (currentAddr < MEM_SIZE) newMem[currentAddr++] = b;
+        });
+      } else {
+        const s = line.split(';')[0].toUpperCase().trim();
+        if (s && s !== '-' && !s.startsWith('DB')) {
+          console.warn('Failed to assemble instruction:', line);
+          hasError = true;
+        }
+      }
+    });
+    setCodeMemory(newMem);
+    resetState();
+    if (hasError) {
+      alert('Some instructions could not be assembled. Check the console for details.');
+    }
+  };
+
   const loadAsm = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
-      const lines = text.split('\n');
-      const newMem = new Uint8Array(MEM_SIZE);
-      let currentAddr = CODE_BASE;
-      lines.forEach((line) => {
-        const bytes = assembleInstruction(line, currentAddr);
-        if (bytes.length > 0) {
-          bytes.forEach((b) => {
-            if (currentAddr < MEM_SIZE) newMem[currentAddr++] = b;
-          });
-        }
-      });
-      setCodeMemory(newMem);
-      resetState();
+      loadAsmText(text);
     };
     reader.readAsText(file);
   };
@@ -959,6 +975,7 @@ export default function Main() {
               <HeaderButton variant="blue" onClick={saveAsm}>
                 Save ASM
               </HeaderButton>
+              <CodeGenerator onLoadCode={loadAsmText} />
               <HeaderButton variant="green" onClick={() => fileInputRef.current?.click()}>
                 Load ASM
               </HeaderButton>
