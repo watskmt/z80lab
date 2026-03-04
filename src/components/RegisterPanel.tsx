@@ -11,6 +11,7 @@ interface ArchitecturePanelProps {
   ioOut: number;
   ioIn: number;
   setIoIn: (val: number) => void;
+  highlightSource?: boolean;
 }
 
 const PanelContainer = styled.div`
@@ -45,14 +46,14 @@ const Title = styled.h2`
 const RegGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.125rem;
+  gap: 0.25rem;
 `;
 
 const DoubleRegGrid = styled.div`
   grid-column: span 2 / span 2;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.125rem;
+  gap: 0.25rem;
 `;
 
 const FlagsContainer = styled.div`
@@ -79,12 +80,13 @@ export const RegisterPanel: React.FC<ArchitecturePanelProps> = ({
   ioOut,
   ioIn,
   setIoIn,
+  highlightSource,
 }) => {
   return (
     <PanelContainer className="custom-scrollbar">
       <Title>Core Architecture</Title>
       <RegGrid>
-        <BoldReg label="A" val={regs.A} prevVal={prevRegs.A} />
+        <BoldReg label="A" val={regs.A} prevVal={prevRegs.A} highlight={highlightSource} />
         <BoldReg label="F" val={regs.F} prevVal={prevRegs.F} />
         <BoldReg label="B" val={regs.B} prevVal={prevRegs.B} />
         <BoldReg label="C" val={regs.C} prevVal={prevRegs.C} />

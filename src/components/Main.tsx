@@ -255,6 +255,7 @@ export default function Main() {
     samplePrograms.basicLoad()
   );
   const [dataMemory, setDataMemory] = useState(new Uint8Array(MEM_SIZE));
+  const [prevDataMemory, setPrevDataMemory] = useState(new Uint8Array(MEM_SIZE));
   const [ioOut, setIoOut] = useState(0);
   const [ioIn, setIoIn] = useState(0);
   const [prevRegs, setPrevRegs] = useState<Registers>(initialRegs);
@@ -264,9 +265,16 @@ export default function Main() {
   const [editingAddr, setEditingAddr] = useState<number | null>(null);
   const [editVal, setEditVal] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [highlightWrite, setHighlightWrite] = useState<{
+    sourceAddr: number;
+    destAddr: number;
+    value: number;
+  } | null>(null);
 
   const resetState = () => {
-    setDataMemory(new Uint8Array(MEM_SIZE));
+    const emptyMem = new Uint8Array(MEM_SIZE);
+    setDataMemory(emptyMem);
+    setPrevDataMemory(emptyMem);
     setIoOut(0);
     setIoIn(0);
     setRegs(initialRegs);
@@ -325,18 +333,20 @@ export default function Main() {
 
   const step = () => {
     setPrevRegs(regs);
+    setPrevDataMemory(new Uint8Array(dataMemory)); // 前回のメモリ状態を保存
     const newData = new Uint8Array(dataMemory);
     const m = codeMemory;
     const dm = dataMemory;
     const r = { ...regs };
     const memWrite: number[] = [];
+    let writeAnimation: { sourceAddr: number; destAddr: number; value: number } | null = null;
 
     const get8 = (addr: number) => {
       addr &= 0xffff;
       if (addr === IO_IN_ADDR) return ioIn;
       return dm[addr];
     };
-    const set8 = (addr: number, val: number) => {
+    const set8 = (addr: number, val: number, sourceAddr?: number) => {
       addr &= 0xffff;
       val &= 0xff;
       if (addr === IO_OUT_ADDR) {
@@ -344,6 +354,11 @@ export default function Main() {
       }
       newData[addr] = val;
       memWrite.push(addr);
+
+      // アニメーション情報を記録（レジスタからの書き込みのみ）
+      if (sourceAddr !== undefined && sourceAddr !== addr) {
+        writeAnimation = { sourceAddr, destAddr: addr, value: val };
+      }
     };
     const get16 = (addr: number) => get8(addr) | (get8(addr + 1) << 8);
     const set16 = (addr: number, val: number) => {
@@ -379,7 +394,7 @@ export default function Main() {
       else if (idx === 3) r.E = val;
       else if (idx === 4) r.H = val;
       else if (idx === 5) r.L = val;
-      else if (idx === 6) set8((r.H << 8) | r.L, val);
+      else if (idx === 6) set8((r.H << 8) | r.L, val, CODE_BASE);
       else r.A = val;
     };
 
@@ -444,7 +459,7 @@ export default function Main() {
       switch (op) {
         case 0x00: break;
         case 0x01: r.C = m[r.PC++]; r.B = m[r.PC++]; break;
-        case 0x02: set8((r.B << 8) | r.C, r.A); break;
+        case 0x02: set8((r.B << 8) | r.C, r.A, CODE_BASE); break;
         case 0x03: { const v = ((r.B << 8) | r.C + 1) & 0xffff; r.B = v >> 8; r.C = v & 0xff; break; }
         case 0x04: r.B = add8(r.B, 1); r.F = (r.F & C_FLAG) | (SZP_TABLE[r.B] & ~C_FLAG); break;
         case 0x05: r.B = sub8(r.B, 1); r.F = (r.F & C_FLAG) | (SZP_TABLE[r.B] & ~C_FLAG) | N_FLAG; break;
@@ -461,7 +476,7 @@ export default function Main() {
         case 0x0e: r.C = m[r.PC++]; break;
         case 0x10: { let off = m[r.PC++]; if (off > 127) off -= 256; r.B = (r.B - 1) & 0xff; if (r.B !== 0) r.PC += off; break; }
         case 0x11: r.E = m[r.PC++]; r.D = m[r.PC++]; break;
-        case 0x12: set8((r.D << 8) | r.E, r.A); break;
+        case 0x12: set8((r.D << 8) | r.E, r.A, CODE_BASE); break;
         case 0x13: { const v = ((r.D << 8) | r.E + 1) & 0xffff; r.D = v >> 8; r.E = v & 0xff; break; }
         case 0x14: r.D = add8(r.D, 1); r.F = (r.F & C_FLAG) | (SZP_TABLE[r.D] & ~C_FLAG); break;
         case 0x15: r.D = sub8(r.D, 1); r.F = (r.F & C_FLAG) | (SZP_TABLE[r.D] & ~C_FLAG) | N_FLAG; break;
@@ -497,7 +512,7 @@ export default function Main() {
         case 0x2e: r.L = m[r.PC++]; break;
         case 0x30: { let off = m[r.PC++]; if (off > 127) off -= 256; if (!(r.F & C_FLAG)) r.PC += off; break; }
         case 0x31: r.SP = m[r.PC++] | (m[r.PC++] << 8); break;
-        case 0x32: { const adr = m[r.PC++] | (m[r.PC++] << 8); set8(adr, r.A); break; }
+        case 0x32: { const adr = m[r.PC++] | (m[r.PC++] << 8); set8(adr, r.A, CODE_BASE); break; }
         case 0x33: r.SP = (r.SP + 1) & 0xffff; break;
         case 0x34: { const adr = (r.H << 8) | r.L; const v = add8(get8(adr), 1); set8(adr, v); r.F = (r.F & C_FLAG) | (SZP_TABLE[v] & ~C_FLAG); break; }
         case 0x35: { const adr = (r.H << 8) | r.L; const v = sub8(get8(adr), 1); set8(adr, v); r.F = (r.F & C_FLAG) | (SZP_TABLE[v] & ~C_FLAG) | N_FLAG; break; }
@@ -657,7 +672,14 @@ export default function Main() {
     setDataMemory(newData);
     setRegs(r);
     setWrites(memWrite);
+
+    // ハイライト設定
+    if (writeAnimation) {
+      setHighlightWrite(writeAnimation);
+      setTimeout(() => setHighlightWrite(null), 800);
+    }
   };
+
 
   return (
     <GlobalStyle>
@@ -725,6 +747,7 @@ export default function Main() {
               ioOut={ioOut}
               ioIn={ioIn}
               setIoIn={setIoIn}
+              highlightSource={highlightWrite?.sourceAddr === CODE_BASE}
             />
 
             <RightSection>
@@ -742,14 +765,17 @@ export default function Main() {
 
                 <RamPanel
                   dataMemory={dataMemory}
+                  prevDataMemory={prevDataMemory}
                   writes={writes}
                   DATA_BASE={DATA_BASE}
+                  highlightAddr={highlightWrite?.destAddr}
                 />
 
                 <StackPanel
                   stackBaseAddr={stackBaseAddr}
                   sp={regs.SP}
                   dataMemory={dataMemory}
+                  prevDataMemory={prevDataMemory}
                   writes={writes}
                 />
               </ContentGrid>

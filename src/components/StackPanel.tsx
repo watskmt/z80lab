@@ -6,6 +6,7 @@ interface StackPanelProps {
   stackBaseAddr: number;
   sp: number;
   dataMemory: Uint8Array;
+  prevDataMemory: Uint8Array;
   writes: number[];
 }
 
@@ -79,10 +80,31 @@ const MarkerCell = styled.td`
   font-weight: 900;
 `;
 
+const TransitionText = styled.span`
+  display: inline-block;
+  white-space: nowrap;
+`;
+
+const OldValue = styled.span`
+  color: #f87171;
+  text-decoration: line-through;
+`;
+
+const Arrow = styled.span`
+  color: #60a5fa;
+  margin: 0 2px;
+`;
+
+const NewValue = styled.span`
+  color: #4ade80;
+  font-weight: 900;
+`;
+
 export const StackPanel: React.FC<StackPanelProps> = ({
   stackBaseAddr,
   sp,
   dataMemory,
+  prevDataMemory,
   writes,
 }) => {
   return (
@@ -95,10 +117,24 @@ export const StackPanel: React.FC<StackPanelProps> = ({
               const addr = (stackBaseAddr - 4 + i) & 0xffff;
               const isSP = addr === sp;
               const isTouched = writes.includes(addr);
+              const currentVal = dataMemory[addr];
+              const prevVal = prevDataMemory[addr];
+              const isChanged = currentVal !== prevVal;
+
               return (
                 <Row key={i} isSP={isSP} touched={isTouched}>
                   <AddrCell isSP={isSP} touched={isTouched}>{hex4(addr)}</AddrCell>
-                  <ValCell isSP={isSP} touched={isTouched}>{hex2(dataMemory[addr])}</ValCell>
+                  <ValCell isSP={isSP} touched={isTouched}>
+                    {isChanged ? (
+                      <TransitionText>
+                        <OldValue>{hex2(prevVal)}</OldValue>
+                        <Arrow>→</Arrow>
+                        <NewValue>{hex2(currentVal)}</NewValue>
+                      </TransitionText>
+                    ) : (
+                      hex2(currentVal)
+                    )}
+                  </ValCell>
                   <MarkerCell>{isSP ? '←' : ''}</MarkerCell>
                 </Row>
               );

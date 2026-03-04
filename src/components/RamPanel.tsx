@@ -4,8 +4,10 @@ import { hex4, hex2 } from '../constants';
 
 interface RamPanelProps {
   dataMemory: Uint8Array;
+  prevDataMemory: Uint8Array;
   writes: number[];
   DATA_BASE: number;
+  highlightAddr?: number;
 }
 
 const PanelContainer = styled.div`
@@ -49,8 +51,13 @@ const Table = styled.table`
   border-spacing: 0;
 `;
 
-const Row = styled.tr<{ touched: boolean }>`
-  background-color: ${(props) => (props.touched ? 'rgba(127, 29, 29, 0.4)' : 'transparent')};
+const Row = styled.tr<{ touched: boolean; isHighlight: boolean }>`
+  background-color: ${(props) =>
+    props.isHighlight ? 'rgba(30, 58, 138, 0.8)' :
+    props.touched ? 'rgba(127, 29, 29, 0.4)' : 'transparent'};
+  box-shadow: ${(props) =>
+    props.isHighlight ? 'inset 0 0 20px rgba(59, 130, 246, 0.6), 0 0 30px rgba(59, 130, 246, 0.4)' : 'none'};
+  transition: all 0.15s ease-in-out;
 `;
 
 const AddrCell = styled.td<{ touched: boolean }>`
@@ -68,10 +75,32 @@ const ValCell = styled.td<{ touched: boolean }>`
   color: ${(props) => (props.touched ? '#ffffff' : '#d4d4d8')};
 `;
 
+const TransitionText = styled.span`
+  display: inline-block;
+  white-space: nowrap;
+`;
+
+const OldValue = styled.span`
+  color: #f87171;
+  text-decoration: line-through;
+`;
+
+const Arrow = styled.span`
+  color: #60a5fa;
+  margin: 0 2px;
+`;
+
+const NewValue = styled.span`
+  color: #4ade80;
+  font-weight: 900;
+`;
+
 export const RamPanel: React.FC<RamPanelProps> = ({
   dataMemory,
+  prevDataMemory,
   writes,
   DATA_BASE,
+  highlightAddr,
 }) => {
   return (
     <PanelContainer>
@@ -82,10 +111,25 @@ export const RamPanel: React.FC<RamPanelProps> = ({
             {Array.from({ length: 128 }).map((_, i) => {
               const addr = DATA_BASE + i;
               const isTouched = writes.includes(addr);
+              const isHighlight = highlightAddr === addr;
+              const currentVal = dataMemory[addr];
+              const prevVal = prevDataMemory[addr];
+              const isChanged = currentVal !== prevVal;
+
               return (
-                <Row key={i} touched={isTouched}>
+                <Row key={i} touched={isTouched} isHighlight={isHighlight}>
                   <AddrCell touched={isTouched}>{hex4(addr)}</AddrCell>
-                  <ValCell touched={isTouched}>{hex2(dataMemory[addr])}</ValCell>
+                  <ValCell touched={isTouched}>
+                    {isChanged ? (
+                      <TransitionText>
+                        <OldValue>{hex2(prevVal)}</OldValue>
+                        <Arrow>→</Arrow>
+                        <NewValue>{hex2(currentVal)}</NewValue>
+                      </TransitionText>
+                    ) : (
+                      hex2(currentVal)
+                    )}
+                  </ValCell>
                 </Row>
               );
             })}
