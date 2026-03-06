@@ -1,0 +1,15 @@
+/node_modules
+/vendor
+.env
+.phpunit.result.cache
+Dockerfile
+docker-compose.yml
+storage/*.key
+/public/hot
+/public/storage
+/storage/framework/cache/data/*
+/storage/framework/views/*.php
+/storage/framework/sessions/*
+/storage/logs/*.log
+/database/*.sqlite
+/database/*.sqlite-journal

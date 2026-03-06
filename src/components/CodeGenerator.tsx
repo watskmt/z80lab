@@ -137,11 +137,11 @@ export const CodeGenerator: React.FC<CodeGeneratorProps> = ({ onLoadCode }) => {
   const [prompt, setPrompt] = useState(() => localStorage.getItem('z80lab_openai_prompt') || '');
   const [loading, setLoading] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('z80lab_openai_key') || '');
+  const [baseUrl, setBaseUrl] = useState(() => localStorage.getItem('z80lab_backend_url') || 'http://localhost:8000');
 
-  const saveApiKey = (key: string) => {
-    setApiKey(key);
-    localStorage.setItem('z80lab_openai_key', key);
+  const saveBaseUrl = (url: string) => {
+    setBaseUrl(url);
+    localStorage.setItem('z80lab_backend_url', url);
   };
 
   const savePrompt = (text: string) => {
@@ -151,56 +151,28 @@ export const CodeGenerator: React.FC<CodeGeneratorProps> = ({ onLoadCode }) => {
 
   const generateCode = async () => {
     if (!prompt.trim()) return;
-    if (!apiKey) {
-      alert('Please set your OpenAI API Key in the config (gear icon).');
-      setShowConfig(true);
-      return;
-    }
 
     setLoading(true);
     try {
-      const systemPrompt = `You are a Z80 Assembly expert. Generate ONLY Z80 assembly code based on the user's request.
-- Start address: 0000H
-- IO Ports: Port 0 (OUT) for Lamps, Port 1 (IN) for Switches.
-- Memory Mapped IO: 8000H (Lamps), 8001H (Switches).
-- Use standard Z80 mnemonics.
-- Use 'H' suffix for all hexadecimal numbers (e.g., 0000H, 8000H, 50H).
-- IMPORTANT: DO NOT USE LABELS (e.g., LOOP:). Our assembler does not support them.
-- IMPORTANT: Use absolute memory addresses for all jumps (JP, CALL, JR, DJNZ).
-- IMPORTANT: Our assembler is primitive. Do not use more than one instruction per line. Do not use complex directives.
-- Example for a loop (assuming it starts at 0000H):
-LD B, 50H
-INC A
-DJNZ 0002H ; Jump back to INC A at address 0002H (LD B is 2 bytes, INC A is 1 byte)
-- Do not include explanations, only the assembly instructions, one per line.
-- Ensure all addresses are correctly calculated starting from 0000H.`;
-
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const url = `${baseUrl.replace(/\/+$/, '')}/api/generate`;
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
+          'Accept': 'application/json',
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.7,
+          prompt: prompt,
         }),
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error?.message || 'Failed to generate code');
+        throw new Error(error.error || 'Failed to generate code');
       }
 
       const data = await response.json();
-      let generatedAsm = data.choices[0].message.content;
-      
-      // Clean up markdown if present
-      generatedAsm = generatedAsm.replace(/```[a-z]*\n/g, '').replace(/```/g, '').trim();
+      const generatedAsm = data.asm;
       
       onLoadCode(generatedAsm);
       setIsOpen(false);
@@ -250,14 +222,19 @@ DJNZ 0002H ; Jump back to INC A at address 0002H (LD B is 2 bytes, INC A is 1 by
           </ButtonRow>
           
           {showConfig && (
-            <div>
-              <label style={{ fontSize: '9px', color: '#a1a1aa' }}>OpenAI API Key (stored locally):</label>
-              <ApiKeyInput 
-                type="password" 
-                placeholder="sk-..." 
-                value={apiKey}
-                onChange={(e) => saveApiKey(e.target.value)}
-              />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <div>
+                <label style={{ fontSize: '9px', color: '#a1a1aa' }}>Backend Base URL:</label>
+                <ApiKeyInput 
+                  type="text" 
+                  placeholder="http://localhost:8000" 
+                  value={baseUrl}
+                  onChange={(e) => saveBaseUrl(e.target.value)}
+                />
+              </div>
+              <p style={{ fontSize: '8px', color: '#71717a', margin: 0 }}>
+                * Point this to your Laravel backend (e.g., http://localhost:8000).
+              </p>
             </div>
           )}
         </Popover>

@@ -349,7 +349,7 @@ export default function Main() {
         });
       } else {
         const s = line.split(';')[0].toUpperCase().trim();
-        if (s && s !== '-' && !s.startsWith('DB')) {
+        if (s && s !== '-' && !s.startsWith('DB') && !s.startsWith('DW') && !s.startsWith('ORG') && !s.startsWith('END')) {
           console.warn('Failed to assemble instruction:', line);
           hasError = true;
         }

@@ -4,7 +4,7 @@ import { REGS_MAP, REGS_LIST, hex4, hex2, MEM_SIZE } from '../constants';
 export const assembleInstruction = (text: string, currentAddr: number): number[] => {
   const lineWithoutComment = text.split(';')[0];
   const s = lineWithoutComment.toUpperCase().trim();
-  if (!s || s === '-' || s.startsWith('DB')) return [];
+  if (!s || s === '-' || s.startsWith('DB') || s.startsWith('DW') || s.startsWith('ORG') || s.startsWith('END')) return [];
 
   const compact = s.replace(/\s+/g, '');
 
@@ -37,8 +37,10 @@ export const assembleInstruction = (text: string, currentAddr: number): number[]
   if (ldRnMatch) {
     const r = REGS_MAP[ldRnMatch[1]];
     const valStr = ldRnMatch[2];
-    const n = valStr.endsWith('H') ? parseInt(valStr, 16) : (valStr.match(/^[0-9]+$/) ? parseInt(valStr, 10) : parseInt(valStr, 16));
-    return [0x06 | (r << 3), n & 0xff];
+    const n = valStr.endsWith('H') ? parseInt(valStr.slice(0, -1), 16) : parseInt(valStr, 10);
+    if (!isNaN(n)) {
+      return [0x06 | (r << 3), n & 0xff];
+    }
   }
 
   // INC/DEC r
@@ -58,40 +60,63 @@ export const assembleInstruction = (text: string, currentAddr: number): number[]
     return [0x80 | (opIdx << 3) | r];
   }
 
+  // ADD A, n / SUB n / etc (Immediate)
+  const aluNMatch = compact.match(/^(ADD|ADC|SUB|SBC|AND|XOR|OR|CP)(?:A,)?([0-9A-F]+H?|[0-9]+)$/);
+  if (aluNMatch) {
+    const ops = ['ADD', 'ADC', 'SUB', 'SBC', 'AND', 'XOR', 'OR', 'CP'];
+    const opIdx = ops.indexOf(aluNMatch[1]);
+    const valStr = aluNMatch[2];
+    const n = valStr.endsWith('H') ? parseInt(valStr.slice(0, -1), 16) : parseInt(valStr, 10);
+    if (!isNaN(n)) {
+      return [0xc6 | (opIdx << 3), n & 0xff];
+    }
+  }
+
   // LD HL, nn / LD BC, nn / LD DE, nn / LD SP, nn
   const ldRRnnMatch = compact.match(/^LD(HL|BC|DE|SP),([0-9A-F]+H?|[0-9]+)$/);
   if (ldRRnnMatch) {
     const rr = ldRRnnMatch[1];
     const valStr = ldRRnnMatch[2];
-    const nn = valStr.endsWith('H') ? parseInt(valStr, 16) : (valStr.match(/^[0-9]+$/) ? parseInt(valStr, 10) : parseInt(valStr, 16));
-    const op = rr === 'BC' ? 0x01 : rr === 'DE' ? 0x11 : rr === 'HL' ? 0x21 : 0x31;
-    return [op, nn & 0xff, (nn >> 8) & 0xff];
+    const nn = valStr.endsWith('H') ? parseInt(valStr.slice(0, -1), 16) : parseInt(valStr, 10);
+    if (!isNaN(nn)) {
+      const op = rr === 'BC' ? 0x01 : rr === 'DE' ? 0x11 : rr === 'HL' ? 0x21 : 0x31;
+      return [op, nn & 0xff, (nn >> 8) & 0xff];
+    }
   }
 
   // JP nn / CALL nn
-  const jpCallMatch = compact.match(/^(JP|CALL)([0-9A-F]+)H?$/);
+  const jpCallMatch = compact.match(/^(JP|CALL)([0-9A-F]+H?|[0-9]+)$/);
   if (jpCallMatch) {
     const isCall = jpCallMatch[1] === 'CALL';
-    const nn = parseInt(jpCallMatch[2], 16);
-    return [isCall ? 0xcd : 0xc3, nn & 0xff, (nn >> 8) & 0xff];
+    const valStr = jpCallMatch[2];
+    const nn = valStr.endsWith('H') ? parseInt(valStr.slice(0, -1), 16) : parseInt(valStr, 10);
+    if (!isNaN(nn)) {
+      return [isCall ? 0xcd : 0xc3, nn & 0xff, (nn >> 8) & 0xff];
+    }
   }
 
   // JR e / DJNZ e
-  const jrMatch = compact.match(/^(JR|DJNZ)([0-9A-F]+)H?$/);
+  const jrMatch = compact.match(/^(JR|DJNZ)([0-9A-F]+H?|[0-9]+)$/);
   if (jrMatch) {
     const isDJNZ = jrMatch[1] === 'DJNZ';
-    const targetAddr = parseInt(jrMatch[2], 16);
-    const offset = (targetAddr - (currentAddr + 2)) & 0xff;
-    return [isDJNZ ? 0x10 : 0x18, offset];
+    const valStr = jrMatch[2];
+    const targetAddr = valStr.endsWith('H') ? parseInt(valStr.slice(0, -1), 16) : parseInt(valStr, 10);
+    if (!isNaN(targetAddr)) {
+      const offset = (targetAddr - (currentAddr + 2)) & 0xff;
+      return [isDJNZ ? 0x10 : 0x18, offset];
+    }
   }
 
   // Conditional Jumps
-  const jpCondMatch = compact.match(/^JP(NZ|Z|NC|C),([0-9A-F]+)H?$/);
+  const jpCondMatch = compact.match(/^JP(NZ|Z|NC|C),([0-9A-F]+H?|[0-9]+)$/);
   if (jpCondMatch) {
     const conds = ['NZ', 'Z', 'NC', 'C'];
     const idx = conds.indexOf(jpCondMatch[1]);
-    const nn = parseInt(jpCondMatch[2], 16);
-    return [0xc2 | (idx << 3), nn & 0xff, (nn >> 8) & 0xff];
+    const valStr = jpCondMatch[2];
+    const nn = valStr.endsWith('H') ? parseInt(valStr.slice(0, -1), 16) : parseInt(valStr, 10);
+    if (!isNaN(nn)) {
+      return [0xc2 | (idx << 3), nn & 0xff, (nn >> 8) & 0xff];
+    }
   }
 
   // LD (HL), A / LD A, (HL)
@@ -103,20 +128,24 @@ export const assembleInstruction = (text: string, currentAddr: number): number[]
   if (compact === 'LDA,(DE)') return [0x1a];
 
   // LD (nn), A / LD A, (nn)
-  const ldMemAMatch = compact.match(/^LD\(([0-9A-F]{3,}|[0-9A-F]{1,2}H?|[0-9A-F]{2})\),A$/);
+  const ldMemAMatch = compact.match(/^LD\(([0-9A-F]+H?|[0-9]+)\),A$/);
   if (ldMemAMatch) {
     const valStr = ldMemAMatch[1];
     if (valStr !== 'BC' && valStr !== 'DE' && valStr !== 'HL') {
-      const nn = parseInt(valStr, 16);
-      return [0x32, nn & 0xff, (nn >> 8) & 0xff];
+      const val = valStr.endsWith('H') ? parseInt(valStr.slice(0, -1), 16) : parseInt(valStr, 10);
+      if (!isNaN(val)) {
+        return [0x32, val & 0xff, (val >> 8) & 0xff];
+      }
     }
   }
-  const ldAMemMatch = compact.match(/^LDA,\(([0-9A-F]{3,}|[0-9A-F]{1,2}H?|[0-9A-F]{2})\)$/);
+  const ldAMemMatch = compact.match(/^LDA,\(([0-9A-F]+H?|[0-9]+)\)$/);
   if (ldAMemMatch) {
     const valStr = ldAMemMatch[1];
     if (valStr !== 'BC' && valStr !== 'DE' && valStr !== 'HL') {
-      const nn = parseInt(valStr, 16);
-      return [0x3a, nn & 0xff, (nn >> 8) & 0xff];
+      const val = valStr.endsWith('H') ? parseInt(valStr.slice(0, -1), 16) : parseInt(valStr, 10);
+      if (!isNaN(val)) {
+        return [0x3a, val & 0xff, (val >> 8) & 0xff];
+      }
     }
   }
 
@@ -124,8 +153,10 @@ export const assembleInstruction = (text: string, currentAddr: number): number[]
   const ldHLnMatch = compact.match(/^LD\(HL\),([0-9A-F]+H?|[0-9]+)$/);
   if (ldHLnMatch) {
     const valStr = ldHLnMatch[1];
-    const n = valStr.endsWith('H') ? parseInt(valStr, 16) : (valStr.match(/^[0-9]+$/) ? parseInt(valStr, 10) : parseInt(valStr, 16));
-    return [0x36, n & 0xff];
+    const n = valStr.endsWith('H') ? parseInt(valStr.slice(0, -1), 16) : parseInt(valStr, 10);
+    if (!isNaN(n)) {
+      return [0x36, n & 0xff];
+    }
   }
 
   // PUSH/POP
@@ -146,13 +177,21 @@ export const assembleInstruction = (text: string, currentAddr: number): number[]
   }
 
   // OUT (n), A / IN A, (n)
-  const outNMMatch = compact.match(/^OUT\(([0-9A-F]+)H?\),A$/);
+  const outNMMatch = compact.match(/^OUT\(([0-9A-F]+H?|[0-9]+)\),A$/);
   if (outNMMatch) {
-    return [0xd3, parseInt(outNMMatch[1], 16) & 0xff];
+    const valStr = outNMMatch[1];
+    const n = valStr.endsWith('H') ? parseInt(valStr.slice(0, -1), 16) : parseInt(valStr, 10);
+    if (!isNaN(n)) {
+      return [0xd3, n & 0xff];
+    }
   }
-  const inNAMatch = compact.match(/^INA,\(([0-9A-F]+)H?\)$/);
+  const inNAMatch = compact.match(/^INA,\(([0-9A-F]+H?|[0-9]+)\)$/);
   if (inNAMatch) {
-    return [0xdb, parseInt(inNAMatch[1], 16) & 0xff];
+    const valStr = inNAMatch[1];
+    const n = valStr.endsWith('H') ? parseInt(valStr.slice(0, -1), 16) : parseInt(valStr, 10);
+    if (!isNaN(n)) {
+      return [0xdb, n & 0xff];
+    }
   }
 
   // OUT (C), r / IN r, (C)
@@ -175,6 +214,15 @@ export const assembleInstruction = (text: string, currentAddr: number): number[]
     return [isIY ? 0xfd : 0xdd, 0x21, nn & 0xff, (nn >> 8) & 0xff];
   }
 
+  // LD (IX+d), A / LD (IY+d), A
+  const ldIXYdAMatch = compact.match(/^LD\((IX|IY)\+([0-9A-F]+)H?\),A$/);
+  if (ldIXYdAMatch) {
+    const isIY = ldIXYdAMatch[1] === 'IY';
+    const d = parseInt(ldIXYdAMatch[2], 16);
+    const offset = d > 127 ? d - 256 : d;
+    return [isIY ? 0xfd : 0xdd, 0x77, offset & 0xff];
+  }
+
   // LD (IX+d), n / LD (IY+d), n
   const ldIXYdNMatch = compact.match(/^LD\((IX|IY)\+([0-9A-F]+)H?\),([0-9A-F]+)H?$/);
   if (ldIXYdNMatch) {
@@ -192,15 +240,6 @@ export const assembleInstruction = (text: string, currentAddr: number): number[]
     const d = parseInt(ldAIXYdMatch[2], 16);
     const offset = d > 127 ? d - 256 : d;
     return [isIY ? 0xfd : 0xdd, 0x7e, offset & 0xff];
-  }
-
-  // LD (IX+d), A / LD (IY+d), A
-  const ldIXYdAMatch = compact.match(/^LD\((IX|IY)\+([0-9A-F]+)H?\),A$/);
-  if (ldIXYdAMatch) {
-    const isIY = ldIXYdAMatch[1] === 'IY';
-    const d = parseInt(ldIXYdAMatch[2], 16);
-    const offset = d > 127 ? d - 256 : d;
-    return [isIY ? 0xfd : 0xdd, 0x77, offset & 0xff];
   }
 
   // INC IX / INC IY / DEC IX / DEC IY
@@ -315,6 +354,11 @@ export function disasm(code: Uint8Array, start: number, count = 128) {
         case 0xd3: text = `OUT (${hex2(code[pc + 1])}),A`; pc += 2; break;
         case 0xdb: text = `IN A,(${hex2(code[pc + 1])})`; pc += 2; break;
         case 0xd9: text = 'EXX'; pc += 1; break;
+        case 0xc6: case 0xce: case 0xd6: case 0xde: case 0xe6: case 0xee: case 0xf6: case 0xfe: {
+          const ops = ['ADD A,', 'ADC A,', 'SUB ', 'SBC A,', 'AND ', 'XOR ', 'OR ', 'CP '];
+          text = `${ops[(op >> 3) & 7]}${hex2(code[pc + 1])}`;
+          pc += 2; break;
+        }
         case 0x18: { let off = code[pc + 1]; if (off > 127) off -= 256; text = `JR ${hex4(pc + 2 + off)}`; pc += 2; break; }
         case 0x10: { let off = code[pc + 1]; if (off > 127) off -= 256; text = `DJNZ ${hex4(pc + 2 + off)}`; pc += 2; break; }
         case 0xcb: {
