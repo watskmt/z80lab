@@ -134,7 +134,7 @@ const ApiKeyInput = styled.input`
 
 export const CodeGenerator: React.FC<CodeGeneratorProps> = ({ onLoadCode }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [prompt, setPrompt] = useState(() => localStorage.getItem('z80lab_openai_prompt') || '');
+  const [prompt, setPrompt] = useState(() => localStorage.getItem('z80lab_ai_prompt') || '');
   const [loading, setLoading] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
   const [baseUrl, setBaseUrl] = useState(() => localStorage.getItem('z80lab_backend_url') || 'http://localhost:8000');
@@ -146,7 +146,7 @@ export const CodeGenerator: React.FC<CodeGeneratorProps> = ({ onLoadCode }) => {
 
   const savePrompt = (text: string) => {
     setPrompt(text);
-    localStorage.setItem('z80lab_openai_prompt', text);
+    localStorage.setItem('z80lab_ai_prompt', text);
   };
 
   const generateCode = async () => {

@@ -8,11 +8,11 @@ Z80命令の実行、メモリマップドIO、標準IOをシミュレートで�
   - 出力ランプ (Port 0 / 0x8000)
   - 入力スイッチ (Port 1 / 0x8001)
   - MMIOとStandard IOの表示切り替え。
-- **AIサンプル生成**: ChatGPT (OpenAI API) を使用して、やりたいことからZ80アセンブリコードを自動生成。
+- **AIサンプル生成**: Google Gemini (Gemini API) を使用して、やりたいことからZ80アセンブリコードを自動生成。
 
 ## AIサンプル生成の使い方
 1. エディタ下の「AI Sample Generator」パネルにある歯車アイコンをクリック。
-2. OpenAIのAPIキーを入力（ブラウザのlocalStorageに保存されます）。
+2. LaravelバックエンドのURLを入力（デフォルトは http://localhost:8000 ）。
 3. テキストボックスに「スイッチの状態をランプにコピーするループ」などのやりたい内容を入力。
 4. 「GENERATE & LOAD」ボタンを押すと、コードが生成され、エミュレータにロードされます。
 
@@ -21,7 +21,7 @@ Z80命令の実行、メモリマップドIO、標準IOをシミュレートで�
 バックエンドの開発環境を Docker を使用して起動できます。
 
 ### 1. 準備
-`backend/` ディレクトリ内に `.env` ファイルを作成し、必要な設定（OpenAI API キーなど）を行ってください。
+`backend/` ディレクトリ内に `.env` ファイルを作成し、必要な設定（Gemini API キーなど）を行ってください。
 ```bash
 cp backend/.env.example backend/.env
 ```
