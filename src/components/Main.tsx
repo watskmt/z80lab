@@ -957,7 +957,7 @@ export default function Main() {
         <MainWrapper>
           <Header>
             <Logo>
-              Z80<LogoAccent>LAB</LogoAccent>
+              Z-80<LogoAccent>LAB</LogoAccent>
               <SocialLinkWrapper>
                 <SocialLink
                   href="https://x.com"
