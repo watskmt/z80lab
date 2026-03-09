@@ -60,7 +60,7 @@ jobs:
           lftp -e "set ftp:ssl-allow yes; \
           open -u ${{ secrets.XREA_USER }},${{ secrets.XREA_PASS }} ${{ secrets.XREA_HOST }}; \
           # Frontend のデプロイ \
-          ls -la ~/; \
+          ls -la ./dist/; \
           mirror -R ./dist/ ~/domains/z80lab.com/public_html \
           --delete --parallel=10 \
           --exclude .git/; \
