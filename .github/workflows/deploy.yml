@@ -8,6 +8,9 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://z80lab.com
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,6 +26,7 @@ jobs:
       - name: Install and Build (Frontend)
         run: |
           npm install
+          echo "VITE_API_URL=https://z80lab.com" > .env
           npm run build
 
       # 3. PHP のセットアップ (Backend)
@@ -60,6 +64,7 @@ jobs:
           lftp -e "set ftp:ssl-allow yes; \
           open -u ${{ secrets.XREA_USER }},${{ secrets.XREA_PASS }} ${{ secrets.XREA_HOST }}; \
           # Frontend のデプロイ \
+          ls -la ./dist/; \
           mirror -R ./dist/ ~/domains/z80lab.com/public_html \
           --parallel=10 \
           --exclude .git/; \
@@ -74,3 +79,6 @@ jobs:
           # vendor ディレクトリのみ別途同期 (変更が多いため削除せずに同期) \
           mirror -R ./backend/vendor/ ~/domains/z80lab.com/laravel/vendor --parallel=10; \
           quit"
+
+      - name: Show Deployment URL
+        run: echo "Deployed to https://z80lab.com"

@@ -137,7 +137,7 @@ export const CodeGenerator: React.FC<CodeGeneratorProps> = ({ onLoadCode }) => {
   const [prompt, setPrompt] = useState(() => localStorage.getItem('z80lab_ai_prompt') || '');
   const [loading, setLoading] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
-  const [baseUrl, setBaseUrl] = useState(() => localStorage.getItem('z80lab_backend_url') || 'http://localhost:8000');
+  const [baseUrl, setBaseUrl] = useState(() => localStorage.getItem('z80lab_backend_url') || import.meta.env.VITE_API_URL || 'http://localhost:8000');
 
   const saveBaseUrl = (url: string) => {
     setBaseUrl(url);
@@ -227,13 +227,13 @@ export const CodeGenerator: React.FC<CodeGeneratorProps> = ({ onLoadCode }) => {
                 <label style={{ fontSize: '9px', color: '#a1a1aa' }}>Backend Base URL:</label>
                 <ApiKeyInput 
                   type="text" 
-                  placeholder="http://localhost:8000" 
+                  placeholder={import.meta.env.VITE_API_URL || "http://localhost:8000"} 
                   value={baseUrl}
                   onChange={(e) => saveBaseUrl(e.target.value)}
                 />
               </div>
               <p style={{ fontSize: '8px', color: '#71717a', margin: 0 }}>
-                * Point this to your Laravel backend (e.g., http://localhost:8000).
+                * Point this to your Laravel backend (e.g., {import.meta.env.VITE_API_URL || 'http://localhost:8000'}).
               </p>
             </div>
           )}

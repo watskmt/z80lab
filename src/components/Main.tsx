@@ -997,7 +997,7 @@ export default function Main() {
                 defaultValue=""
               >
                 <option value="" disabled>
-                  SELECT PROGRAM...
+                  SAMPLE CODE...
                 </option>
                 {Object.keys(samplePrograms).map((name) => (
                   <option key={name} value={name}>
