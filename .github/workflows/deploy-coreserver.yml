@@ -89,10 +89,17 @@ jobs:
             --exclude node_modules/ \
             --exclude storage/logs/ \
             --exclude storage/framework/sessions/ \
-            --exclude public/;
+            --exclude public/build/ \
+            --exclude public/assets/ \
+            --exclude public/index.php \
+            --exclude public/.htaccess;
 
           # public ディレクトリの中身を domains/z80lab.com/public_html にデプロイ
           mirror -R ./backend/public/ domains/z80lab.com/public_html --delete --parallel=10;
+
+          # manifest.json 等が含まれる build ディレクトリを laravel/public/build にもデプロイ
+          # Laravel 11 の Vite は public_path('build/manifest.json') を参照するため、ここにも必要
+          mirror -R ./backend/public/build/ domains/z80lab.com/laravel/public/build --delete --parallel=10;
 
           # vendor は削除せずに同期 (高速化)
           mirror -R ./backend/vendor/ domains/z80lab.com/laravel/vendor --parallel=10;
