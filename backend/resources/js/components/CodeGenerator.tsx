@@ -137,7 +137,7 @@ export const CodeGenerator: React.FC<CodeGeneratorProps> = ({ onLoadCode }) => {
   const [prompt, setPrompt] = useState(() => localStorage.getItem('z80lab_ai_prompt') || '');
   const [loading, setLoading] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
-  const [baseUrl, setBaseUrl] = useState(() => localStorage.getItem('z80lab_backend_url') || import.meta.env.VITE_API_URL || 'http://localhost:8000');
+  const [baseUrl, setBaseUrl] = useState(() => localStorage.getItem('z80lab_backend_url') || import.meta.env.VITE_API_URL || '');
 
   const saveBaseUrl = (url: string) => {
     setBaseUrl(url);
@@ -154,7 +154,7 @@ export const CodeGenerator: React.FC<CodeGeneratorProps> = ({ onLoadCode }) => {
 
     setLoading(true);
     try {
-      const url = `${baseUrl.replace(/\/+$/, '')}/api/generate`;
+      const url = baseUrl ? `${baseUrl.replace(/\/+$/, '')}/api/generate` : '/api/generate';
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -173,7 +173,7 @@ export const CodeGenerator: React.FC<CodeGeneratorProps> = ({ onLoadCode }) => {
 
       const data = await response.json();
       const generatedAsm = data.asm;
-      
+
       onLoadCode(generatedAsm);
       setIsOpen(false);
     } catch (err: unknown) {
@@ -201,15 +201,15 @@ export const CodeGenerator: React.FC<CodeGeneratorProps> = ({ onLoadCode }) => {
             </svg>
             AI Sample Generator
           </Title>
-          
-          <InputArea 
+
+          <InputArea
             placeholder="Enter code description (e.g., 'Loop to blink lamps')"
             value={prompt}
             onChange={(e) => savePrompt(e.target.value)}
             disabled={loading}
             autoFocus
           />
-          
+
           <ButtonRow>
             <GenerateButton onClick={generateCode} disabled={loading || !prompt.trim()}>
               {loading ? 'GENERATING...' : 'GENERATE & LOAD'}
@@ -220,14 +220,14 @@ export const CodeGenerator: React.FC<CodeGeneratorProps> = ({ onLoadCode }) => {
               </svg>
             </ConfigButton>
           </ButtonRow>
-          
+
           {showConfig && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <div>
                 <label style={{ fontSize: '9px', color: '#a1a1aa' }}>Backend Base URL:</label>
-                <ApiKeyInput 
-                  type="text" 
-                  placeholder={import.meta.env.VITE_API_URL || "http://localhost:8000"} 
+                <ApiKeyInput
+                  type="text"
+                  placeholder={import.meta.env.VITE_API_URL || "http://localhost:8000"}
                   value={baseUrl}
                   onChange={(e) => saveBaseUrl(e.target.value)}
                 />

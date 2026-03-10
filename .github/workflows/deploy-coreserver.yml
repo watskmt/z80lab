@@ -15,21 +15,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 1. Node.js のセットアップ (Frontend)
+      # 1. Node.js のセットアップ
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
 
-      # 2. Frontend 依存関係のインストールとビルド
-      - name: Install and Build (Frontend)
-        run: |
-          npm install
-          echo "VITE_API_URL=https://z80lab.com" > .env
-          npm run build
-
-      # 3. PHP のセットアップ (Backend)
+      # 2. PHP のセットアップ
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
@@ -37,14 +31,20 @@ jobs:
           extensions: mbstring, xml, ctype, iconv, mysql, sqlite
           coverage: none
 
-      # 4. Backend 依存関係のインストール
-      - name: Install Dependencies (Backend)
+      # 3. Backend (Laravel) 依存関係のインストール
+      - name: Install PHP Dependencies
+        working-directory: ./backend
+        run: composer install --no-dev --optimize-autoloader
+
+      # 4. Frontend 依存関係のインストールとビルド (Vite)
+      - name: Install and Build Frontend
         working-directory: ./backend
         run: |
-          composer install --no-dev --optimize-autoloader
+          npm install
+          npm run build
 
-      # 5. Production .env の作成 (Backend)
-      - name: Create Production .env (Backend)
+      # 5. Production .env の作成
+      - name: Create Production .env
         working-directory: ./backend
         run: |
           cp .env.example .env
@@ -58,48 +58,27 @@ jobs:
       - name: Install lftp
         run: sudo apt-get install -y lftp
 
-      # 7. FTP デプロイ (CoreServer V2)
+      # 7. FTP デプロイ
       - name: FTP Deploy
         run: |
-          # 修正版 index.php の作成 (public_html/api 用)
-          mkdir -p api-dist
-          cp backend/public/index.php api-dist/index.php
-          sed -i "s|__DIR__.'/../|__DIR__.'/../../laravel/|g" api-dist/index.php
-          
-          # CoreServer V2 / XREA (PHP engine is disable) 対策用の .htaccess 作成
-          # LiteSpeed (CoreServer V2) では .php のハンドラを明示的に設定する必要がある場合がある
-          # また、CGI実行を許可するために AddHandler や FilesMatch を使用する
-          echo "Options +ExecCGI +FollowSymLinks" > api-dist/.htaccess
-          echo "AddHandler application/x-httpd-php84 .php" >> api-dist/.htaccess
-          echo "<FilesMatch \.php$>" >> api-dist/.htaccess
-          echo "    SetHandler application/x-httpd-php84" >> api-dist/.htaccess
-          echo "</FilesMatch>" >> api-dist/.htaccess
-          echo "RewriteEngine On" >> api-dist/.htaccess
-          echo "RewriteBase /api/" >> api-dist/.htaccess
-          echo "RewriteCond %{HTTP:Authorization} ." >> api-dist/.htaccess
-          echo "RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]" >> api-dist/.htaccess
-          echo "RewriteCond %{REQUEST_FILENAME} !-d" >> api-dist/.htaccess
-          echo "RewriteCond %{REQUEST_URI} (.+)/$" >> api-dist/.htaccess
-          echo "RewriteRule ^ %1 [L,R=301]" >> api-dist/.htaccess
-          echo "RewriteCond %{REQUEST_FILENAME} !-d" >> api-dist/.htaccess
-          echo "RewriteCond %{REQUEST_FILENAME} !-f" >> api-dist/.htaccess
-          echo "RewriteRule ^ index.php [L]" >> api-dist/.htaccess
-
-          # 診断用 test.php の作成
-          echo "<?php header('Content-Type: application/json'); echo json_encode(['status' => 'ok', 'php_version' => PHP_VERSION, 'sapi' => PHP_SAPI]); ?>" > api-dist/test.php
-
           lftp <<EOF
           set ftp:ssl-allow yes;
           open -u ${{ secrets.CORESERVER_USER }},${{ secrets.CORESERVER_PASS }} ${{ secrets.CORESERVER_HOST }};
-          # Frontend のデプロイ (public_htmlへ)
-          mirror -R ./dist/ domains/z80lab.com/public_html --delete --parallel=10 --exclude .git/;
-          # API エントリポイントのデプロイ (public_html/apiへ)
-          set net:max-retries 1;
-          mirror -R ./api-dist/ domains/z80lab.com/public_html/api --delete;
-          # Backend のデプロイ (public_html の外、~/laravel へ配置)
-          mirror -R ./backend/ domains/z80lab.com/laravel --delete --parallel=10 --exclude .git/ --exclude vendor/ --exclude storage/logs/ --exclude storage/framework/sessions/;
-          # vendor ディレクトリのみ別途同期 (変更が多いため削除せずに同期)
+          
+          # Backend 本体を domains/z80lab.com/laravel にデプロイ
+          mirror -R ./backend/ domains/z80lab.com/laravel --delete --parallel=10 \
+            --exclude .git/ \
+            --exclude node_modules/ \
+            --exclude storage/logs/ \
+            --exclude storage/framework/sessions/ \
+            --exclude public/;
+
+          # public ディレクトリの中身を domains/z80lab.com/public_html にデプロイ
+          mirror -R ./backend/public/ domains/z80lab.com/public_html --delete --parallel=10;
+
+          # vendor は削除せずに同期 (高速化)
           mirror -R ./backend/vendor/ domains/z80lab.com/laravel/vendor --parallel=10;
+          
           quit
           EOF
 
