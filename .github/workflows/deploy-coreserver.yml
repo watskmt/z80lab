@@ -69,7 +69,13 @@ jobs:
           sed -i "s|__DIR__.'/../bootstrap/app.php'|__DIR__.'/../laravel/bootstrap/app.php'|g" backend/public/index.php
 
           # public_html/.htaccess の Options -Indexes 等が 403 の原因になる場合があるため調整
+          # また、CoreServer V2 で PHP が動作するようにハンドラを追加
           sed -i 's/Options -MultiViews -Indexes/Options -MultiViews/g' backend/public/.htaccess
+          # PHP 8.4 ハンドラを先頭に追加
+          sed -i '1i AddHandler application/x-httpd-php84 .php' backend/public/.htaccess
+
+          # 診断用 test.php の作成 (public/ に作成し、public_html/ にデプロイされる)
+          echo "<?php header('Content-Type: application/json'); echo json_encode(['status' => 'ok', 'php_version' => PHP_VERSION, 'sapi' => PHP_SAPI]); ?>" > backend/public/test.php
 
           lftp <<EOF
           set ftp:ssl-allow yes;
