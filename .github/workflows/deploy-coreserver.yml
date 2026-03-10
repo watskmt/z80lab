@@ -79,14 +79,15 @@ jobs:
           # 診断用 test.php の作成 (public/ に作成し、public_html/ にデプロイされる)
           echo "<?php header('Content-Type: application/json'); echo json_encode(['status' => 'ok', 'php_version' => PHP_VERSION, 'sapi' => PHP_SAPI]); ?>" > backend/public/test.php
 
-          # database.sqlite が存在しない場合は空のファイルを作成
-          touch backend/database/database.sqlite
+          # database.sqlite が存在しない場合のみ作成するために、一時的なディレクトリを利用
+          mkdir -p temp_db
+          touch temp_db/database.sqlite
 
           lftp <<EOF
           set ftp:ssl-allow yes;
           open -u ${{ secrets.CORESERVER_USER }},${{ secrets.CORESERVER_PASS }} ${{ secrets.CORESERVER_HOST }};
           
-          # Backend 本体を domains/z80lab.com/laravel にデプロイ
+          # Backend 本体を domains/z80lab.com/laravel にデプロイ (DBファイルは除外)
           mirror -R ./backend/ domains/z80lab.com/laravel --delete --parallel=10 \
             --exclude .git/ \
             --exclude node_modules/ \
@@ -100,8 +101,12 @@ jobs:
             --exclude public/.htaccess \
             --exclude database/database.sqlite;
 
-          # database ディレクトリを同期 (既存のDBを上書きしないよう --delete なし)
-          mirror -R ./backend/database/ domains/z80lab.com/laravel/database --parallel=10;
+          # database ディレクトリを同期 (migrations等は同期するが、sqliteファイルは除外して保護)
+          mirror -R ./backend/database/ domains/z80lab.com/laravel/database --parallel=10 \
+            --exclude database.sqlite;
+
+          # サーバー側に database.sqlite が存在しない場合のみ、空のファイルをアップロード
+          mirror -R ./temp_db/ domains/z80lab.com/laravel/database --only-missing --parallel=10;
 
           # storage ディレクトリの構造を確保 (中のファイルは同期しないがディレクトリは作成)
           # 注意: lftp の mirror はデフォルトでディレクトリを作成する
