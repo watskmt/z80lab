@@ -68,8 +68,12 @@ jobs:
           
           # CoreServer V2 / XREA (PHP engine is disable) 対策用の .htaccess 作成
           # LiteSpeed (CoreServer V2) では .php のハンドラを明示的に設定する必要がある場合がある
+          # また、CGI実行を許可するために AddHandler や FilesMatch を使用する
           echo "Options +ExecCGI +FollowSymLinks" > api-dist/.htaccess
-          echo "AddType application/x-httpd-php84 .php" >> api-dist/.htaccess
+          echo "AddHandler application/x-httpd-php84 .php" >> api-dist/.htaccess
+          echo "<FilesMatch \.php$>" >> api-dist/.htaccess
+          echo "    SetHandler application/x-httpd-php84" >> api-dist/.htaccess
+          echo "</FilesMatch>" >> api-dist/.htaccess
           echo "RewriteEngine On" >> api-dist/.htaccess
           echo "RewriteBase /api/" >> api-dist/.htaccess
           echo "RewriteCond %{HTTP:Authorization} ." >> api-dist/.htaccess
