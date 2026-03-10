@@ -61,23 +61,18 @@ jobs:
       # 7. FTP デプロイ (CoreServer V2)
       - name: FTP Deploy
         run: |
-          lftp -e "set ftp:ssl-allow yes; \
-          open -u ${{ secrets.CORESERVER_USER }},${{ secrets.CORESERVER_PASS }} ${{ secrets.CORESERVER_HOST }}; \
-          # Frontend のデプロイ (public_htmlへ) \
-          mirror -R ./dist/ domains/z80lab.com/public_html \
-          --delete --parallel=10 \
-          --exclude .git/; \
-          # Backend のデプロイ (public_html の外、~/laravel へ配置) \
-          mkdir -p domains/z80lab.com/laravel; \
-          mirror -R ./backend/ domains/z80lab.com/laravel \
-          --delete --parallel=10 \
-          --exclude .git/ \
-          --exclude vendor/ \
-          --exclude storage/logs/ \
-          --exclude storage/framework/sessions/; \
-          # vendor ディレクトリのみ別途同期 (変更が多いため削除せずに同期) \
-          mirror -R ./backend/vendor/ domains/z80lab.com/laravel/vendor --parallel=10; \
-          quit"
+          lftp <<EOF
+          set ftp:ssl-allow yes;
+          open -u ${{ secrets.CORESERVER_USER }},${{ secrets.CORESERVER_PASS }} ${{ secrets.CORESERVER_HOST }};
+          # Frontend のデプロイ (public_htmlへ)
+          mirror -R ./dist/ ~/domains/z80lab.com/public_html --delete --parallel=10 --exclude .git/;
+          # Backend のデプロイ (public_html の外、~/laravel へ配置)
+          mkdir -p ~/domains/z80lab.com/laravel;
+          mirror -R ./backend/ ~/domains/z80lab.com/laravel --delete --parallel=10 --exclude .git/ --exclude vendor/ --exclude storage/logs/ --exclude storage/framework/sessions/;
+          # vendor ディレクトリのみ別途同期 (変更が多いため削除せずに同期)
+          mirror -R ./backend/vendor/ ~/domains/z80lab.com/laravel/vendor --parallel=10;
+          quit
+          EOF
 
       - name: Show Deployment URL
         run: echo "Deployed to https://z80lab.com"
