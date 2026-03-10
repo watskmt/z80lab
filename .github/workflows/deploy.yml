@@ -71,15 +71,18 @@ jobs:
           set ftp:ssl-allow yes;
           open -u ${{ secrets.XREA_USER }},${{ secrets.XREA_PASS }} ${{ secrets.XREA_HOST }};
           # Frontend のデプロイ
-          mirror -R ./dist/ ~/domains/z80lab.com/public_html --delete --parallel=10 --exclude .git/;
+          mirror -R ./dist/ domains/z80lab.com/public_html --delete --parallel=10 --exclude .git/;
           # API エントリポイントのデプロイ (public_html/apiへ)
-          mkdir -p ~/domains/z80lab.com/public_html/api;
-          mirror -R ./api-dist/ ~/domains/z80lab.com/public_html/api --delete;
+          # mirror は対象ディレクトリがなければ作成するので mkdir は不要な場合が多い
+          # もし必要ならエラーを無視するように設定
+          set net:max-retries 1;
+          mkdir -p domains/z80lab.com/public_html/api || true;
+          mirror -R ./api-dist/ domains/z80lab.com/public_html/api --delete;
           # Backend のデプロイ (Laravel本体をpublic_htmlの外に配置)
-          mkdir -p ~/domains/z80lab.com/laravel;
-          mirror -R ./backend/ ~/domains/z80lab.com/laravel --delete --parallel=10 --exclude .git/ --exclude vendor/ --exclude storage/logs/ --exclude storage/framework/sessions/;
+          mkdir -p domains/z80lab.com/laravel || true;
+          mirror -R ./backend/ domains/z80lab.com/laravel --delete --parallel=10 --exclude .git/ --exclude vendor/ --exclude storage/logs/ --exclude storage/framework/sessions/;
           # vendor ディレクトリのみ別途同期 (変更が多いため削除せずに同期)
-          mirror -R ./backend/vendor/ ~/domains/z80lab.com/laravel/vendor --parallel=10;
+          mirror -R ./backend/vendor/ domains/z80lab.com/laravel/vendor --parallel=10;
           quit
           EOF
 
