@@ -61,11 +61,20 @@ jobs:
       # 7. FTP デプロイ (CoreServer V2)
       - name: FTP Deploy
         run: |
+          # 修正版 index.php の作成 (public_html/api 用)
+          mkdir -p api-dist
+          cp backend/public/index.php api-dist/index.php
+          sed -i "s|__DIR__.'/../|__DIR__.'/../../laravel/|g" api-dist/index.php
+          cp backend/public/.htaccess api-dist/.htaccess
+
           lftp <<EOF
           set ftp:ssl-allow yes;
           open -u ${{ secrets.CORESERVER_USER }},${{ secrets.CORESERVER_PASS }} ${{ secrets.CORESERVER_HOST }};
           # Frontend のデプロイ (public_htmlへ)
           mirror -R ./dist/ ~/domains/z80lab.com/public_html --delete --parallel=10 --exclude .git/;
+          # API エントリポイントのデプロイ (public_html/apiへ)
+          mkdir -p ~/domains/z80lab.com/public_html/api;
+          mirror -R ./api-dist/ ~/domains/z80lab.com/public_html/api --delete;
           # Backend のデプロイ (public_html の外、~/laravel へ配置)
           mkdir -p ~/domains/z80lab.com/laravel;
           mirror -R ./backend/ ~/domains/z80lab.com/laravel --delete --parallel=10 --exclude .git/ --exclude vendor/ --exclude storage/logs/ --exclude storage/framework/sessions/;
