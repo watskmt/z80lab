@@ -51,6 +51,7 @@ jobs:
           sed -i 's/APP_ENV=local/APP_ENV=production/g' .env
           sed -i 's/APP_DEBUG=true/APP_DEBUG=false/g' .env
           sed -i 's|APP_URL=http://localhost|APP_URL=https://z80lab.com|g' .env
+          echo "ASSET_URL=https://z80lab.com" >> .env
           echo "APP_KEY=${{ secrets.APP_KEY }}" >> .env
           echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
 
@@ -61,6 +62,15 @@ jobs:
       # 7. FTP デプロイ
       - name: FTP Deploy
         run: |
+          # サーバー側の public_html/index.php を修正して、正しいパスで laravel/ を読み込むようにする
+          # 元の require __DIR__.'/../vendor/autoload.php'; を ../laravel/vendor/autoload.php に書き換え
+          # $app = require_once __DIR__.'/../bootstrap/app.php'; を ../laravel/bootstrap/app.php に書き換え
+          sed -i "s|__DIR__.'/../vendor/autoload.php'|__DIR__.'/../laravel/vendor/autoload.php'|g" backend/public/index.php
+          sed -i "s|__DIR__.'/../bootstrap/app.php'|__DIR__.'/../laravel/bootstrap/app.php'|g" backend/public/index.php
+
+          # public_html/.htaccess の Options -Indexes 等が 403 の原因になる場合があるため調整
+          sed -i 's/Options -MultiViews -Indexes/Options -MultiViews/g' backend/public/.htaccess
+
           lftp <<EOF
           set ftp:ssl-allow yes;
           open -u ${{ secrets.CORESERVER_USER }},${{ secrets.CORESERVER_PASS }} ${{ secrets.CORESERVER_HOST }};
