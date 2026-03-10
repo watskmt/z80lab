@@ -67,9 +67,9 @@ jobs:
           sed -i "s|__DIR__.'/../|__DIR__.'/../../laravel/|g" api-dist/index.php
           
           # CoreServer V2 / XREA (PHP engine is disable) 対策用の .htaccess 作成
-          # LiteSpeed (CoreServer V2) では cgi-script ではなく PHP ハンドラを使用する
-          # AddHandler cgi-script .php は "lscgid: execve..." エラーの原因になるため削除
-          echo "Options +FollowSymLinks" > api-dist/.htaccess
+          # LiteSpeed (CoreServer V2) では .php のハンドラを明示的に設定する必要がある場合がある
+          echo "Options +ExecCGI +FollowSymLinks" > api-dist/.htaccess
+          echo "AddType application/x-httpd-php84 .php" >> api-dist/.htaccess
           echo "RewriteEngine On" >> api-dist/.htaccess
           echo "RewriteBase /api/" >> api-dist/.htaccess
           echo "RewriteCond %{HTTP:Authorization} ." >> api-dist/.htaccess
