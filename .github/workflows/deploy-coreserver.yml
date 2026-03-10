@@ -67,8 +67,10 @@ jobs:
           sed -i "s|__DIR__.'/../|__DIR__.'/../../laravel/|g" api-dist/index.php
           
           # CoreServer V2 (PHP engine is disable) 対策用の .htaccess 作成
-          # RewriteBase を /api/ に設定し、サブディレクトリでの動作を安定させる
-          echo "RewriteEngine On" > api-dist/.htaccess
+          # Options +ExecCGI を追加し、PHP 実行を明示的に許可
+          # AddHandler はサーバーのデフォルト設定に従うように最小限にする
+          echo "Options +ExecCGI +FollowSymLinks" > api-dist/.htaccess
+          echo "RewriteEngine On" >> api-dist/.htaccess
           echo "RewriteBase /api/" >> api-dist/.htaccess
           echo "RewriteCond %{HTTP:Authorization} ." >> api-dist/.htaccess
           echo "RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]" >> api-dist/.htaccess
