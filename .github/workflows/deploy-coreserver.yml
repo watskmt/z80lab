@@ -67,9 +67,9 @@ jobs:
           sed -i "s|__DIR__.'/../|__DIR__.'/../../laravel/|g" api-dist/index.php
           
           # CoreServer V2 / XREA (PHP engine is disable) 対策用の .htaccess 作成
-          # CoreServer V2 では CGI 版 PHP を動作させるために AddHandler が必要な場合がある
-          echo "Options +ExecCGI +FollowSymLinks" > api-dist/.htaccess
-          echo "AddHandler cgi-script .php" >> api-dist/.htaccess
+          # LiteSpeed (CoreServer V2) では cgi-script ではなく PHP ハンドラを使用する
+          # AddHandler cgi-script .php は "lscgid: execve..." エラーの原因になるため削除
+          echo "Options +FollowSymLinks" > api-dist/.htaccess
           echo "RewriteEngine On" >> api-dist/.htaccess
           echo "RewriteBase /api/" >> api-dist/.htaccess
           echo "RewriteCond %{HTTP:Authorization} ." >> api-dist/.htaccess
@@ -80,6 +80,9 @@ jobs:
           echo "RewriteCond %{REQUEST_FILENAME} !-d" >> api-dist/.htaccess
           echo "RewriteCond %{REQUEST_FILENAME} !-f" >> api-dist/.htaccess
           echo "RewriteRule ^ index.php [L]" >> api-dist/.htaccess
+
+          # 診断用 test.php の作成
+          echo "<?php header('Content-Type: application/json'); echo json_encode(['status' => 'ok', 'php_version' => PHP_VERSION, 'sapi' => PHP_SAPI]); ?>" > api-dist/test.php
 
           lftp <<EOF
           set ftp:ssl-allow yes;
