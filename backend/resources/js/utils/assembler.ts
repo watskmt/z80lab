@@ -6,7 +6,9 @@ export const assembleInstruction = (text: string, currentAddr: number): number[]
   const s = lineWithoutComment.toUpperCase().trim();
   if (!s || s === '-' || s.startsWith('DB') || s.startsWith('DW') || s.startsWith('ORG') || s.startsWith('END')) return [];
 
-  const compact = s.replace(/\s+/g, '');
+  // Normalize 0x-prefixed hex to decimal
+  const normalized = s.replace(/0X([0-9A-F]+)/g, (_m, h) => parseInt(h, 16).toString());
+  const compact = normalized.replace(/\s+/g, '');
 
   // 1-byte opcodes (Simplified/Greedy)
   if (compact === 'NOP') return [0x00];
@@ -51,6 +53,20 @@ export const assembleInstruction = (text: string, currentAddr: number): number[]
     return [isInc ? 0x04 | (r << 3) : 0x05 | (r << 3)];
   }
 
+  // INC/DEC rr (16-bit)
+  const incDecRRMatch = compact.match(/^(INC|DEC)(BC|DE|HL|SP)$/);
+  if (incDecRRMatch) {
+    const isInc = incDecRRMatch[1] === 'INC';
+    const rr = incDecRRMatch[2];
+    const opBase = isInc ? 0x03 : 0x0b;
+    const offset = rr === 'BC' ? 0x00 : rr === 'DE' ? 0x10 : rr === 'HL' ? 0x20 : 0x30;
+    return [opBase | offset];
+  }
+
+  // INC/DEC (HL)
+  if (compact === 'INC(HL)') return [0x34];
+  if (compact === 'DEC(HL)') return [0x35];
+
   // ADD A, r / SUB r / etc
   const aluMatch = compact.match(/^(ADD|ADC|SUB|SBC|AND|XOR|OR|CP)(?:A,)?([A-EHL]|B|C|D|E|H|L|A)$/);
   if (aluMatch) {
@@ -58,6 +74,14 @@ export const assembleInstruction = (text: string, currentAddr: number): number[]
     const opIdx = ops.indexOf(aluMatch[1]);
     const r = REGS_MAP[aluMatch[2]];
     return [0x80 | (opIdx << 3) | r];
+  }
+
+  // ADD HL, rr
+  const addHLRRMatch = compact.match(/^ADDHL,(BC|DE|HL|SP)$/);
+  if (addHLRRMatch) {
+    const rrs = ['BC', 'DE', 'HL', 'SP'];
+    const idx = rrs.indexOf(addHLRRMatch[1]);
+    return [0x09 | (idx << 4)];
   }
 
   // ADD A, n / SUB n / etc (Immediate)
@@ -107,6 +131,19 @@ export const assembleInstruction = (text: string, currentAddr: number): number[]
     }
   }
 
+  // Conditional Relative Jumps (JR NZ,e / JR Z,e / JR NC,e / JR C,e)
+  const jrCondMatch = compact.match(/^JR(NZ|Z|NC|C),([0-9A-F]+H?|[0-9]+)$/);
+  if (jrCondMatch) {
+    const conds = ['NZ', 'Z', 'NC', 'C'];
+    const idx = conds.indexOf(jrCondMatch[1]);
+    const valStr = jrCondMatch[2];
+    const targetAddr = valStr.endsWith('H') ? parseInt(valStr.slice(0, -1), 16) : parseInt(valStr, 10);
+    if (!isNaN(targetAddr)) {
+      const offset = (targetAddr - (currentAddr + 2)) & 0xff;
+      return [0x20 | (idx << 3), offset];
+    }
+  }
+
   // Conditional Jumps
   const jpCondMatch = compact.match(/^JP(NZ|Z|NC|C),([0-9A-F]+H?|[0-9]+)$/);
   if (jpCondMatch) {
@@ -117,6 +154,18 @@ export const assembleInstruction = (text: string, currentAddr: number): number[]
     if (!isNaN(nn)) {
       return [0xc2 | (idx << 3), nn & 0xff, (nn >> 8) & 0xff];
     }
+  }
+
+  // LD (HL), r / LD r, (HL)
+  const ldHLRegMatch = compact.match(/^LD\(HL\),([A-EHL]|B|C|D|E|H|L|A)$/);
+  if (ldHLRegMatch) {
+    const s = REGS_MAP[ldHLRegMatch[1]];
+    if (s !== 6) return [0x70 | s];
+  }
+  const ldRegHLMatch = compact.match(/^LD([A-EHL]|B|C|D|E|H|L|A),\(HL\)$/);
+  if (ldRegHLMatch) {
+    const d = REGS_MAP[ldRegHLMatch[1]];
+    if (d !== 6) return [0x46 | (d << 3)];
   }
 
   // LD (HL), A / LD A, (HL)
@@ -207,47 +256,77 @@ export const assembleInstruction = (text: string, currentAddr: number): number[]
   }
 
   // LD IX, nn / LD IY, nn
-  const ldIXIYnnMatch = compact.match(/^LD(IX|IY),([0-9A-F]+)H?$/);
+  const ldIXIYnnMatch = compact.match(/^LD(IX|IY),([-+]?[0-9A-F]+H?|[0-9]+)$/);
   if (ldIXIYnnMatch) {
     const isIY = ldIXIYnnMatch[1] === 'IY';
-    const nn = parseInt(ldIXIYnnMatch[2], 16);
-    return [isIY ? 0xfd : 0xdd, 0x21, nn & 0xff, (nn >> 8) & 0xff];
+    const valStr = ldIXIYnnMatch[2];
+    const nn = valStr.endsWith('H') ? parseInt(valStr.slice(0, -1), 16) : parseInt(valStr, 10);
+    if (!isNaN(nn)) {
+      return [isIY ? 0xfd : 0xdd, 0x21, nn & 0xff, (nn >> 8) & 0xff];
+    }
   }
 
-  // LD (IX+d), A / LD (IY+d), A
-  const ldIXYdAMatch = compact.match(/^LD\((IX|IY)\+([0-9A-F]+)H?\),A$/);
-  if (ldIXYdAMatch) {
-    const isIY = ldIXYdAMatch[1] === 'IY';
-    const d = parseInt(ldIXYdAMatch[2], 16);
-    const offset = d > 127 ? d - 256 : d;
-    return [isIY ? 0xfd : 0xdd, 0x77, offset & 0xff];
+  // LD r, (IX+d) / LD r, (IY+d)
+  const ldRIXYdMatch = compact.match(/^LD([A-EHL]|B|C|D|E|H|L|A),\((IX|IY)([-+][0-9A-F]+H?|[-+][0-9]+)?\)$/);
+  if (ldRIXYdMatch) {
+    const r = REGS_MAP[ldRIXYdMatch[1]];
+    const isIY = ldRIXYdMatch[2] === 'IY';
+    const dStr = ldRIXYdMatch[3] || '0';
+    const d = dStr.endsWith('H') ? parseInt(dStr.slice(0, -1), 16) : parseInt(dStr, 10);
+    if (!isNaN(d)) {
+      if (r === 6) { // (HL) is not allowed here
+        return [];
+      }
+      return [isIY ? 0xfd : 0xdd, 0x40 | (r << 3) | 6, d & 0xff];
+    }
+  }
+
+  // LD (IX+d), r / LD (IY+d), r
+  const ldIXYdRMatch = compact.match(/^LD\((IX|IY)([-+][0-9A-F]+H?|[-+][0-9]+)?\),([A-EHL]|B|C|D|E|H|L|A)$/);
+  if (ldIXYdRMatch) {
+    const isIY = ldIXYdRMatch[1] === 'IY';
+    const dStr = ldIXYdRMatch[2] || '0';
+    const r = REGS_MAP[ldIXYdRMatch[3]];
+    const d = dStr.endsWith('H') ? parseInt(dStr.slice(0, -1), 16) : parseInt(dStr, 10);
+    if (!isNaN(d)) {
+      if (r === 6) { // (HL) is not allowed here
+        return [];
+      }
+      return [isIY ? 0xfd : 0xdd, 0x70 | r, d & 0xff];
+    }
   }
 
   // LD (IX+d), n / LD (IY+d), n
-  const ldIXYdNMatch = compact.match(/^LD\((IX|IY)\+([0-9A-F]+)H?\),([0-9A-F]+)H?$/);
+  const ldIXYdNMatch = compact.match(/^LD\((IX|IY)([-+][0-9A-F]+H?|[-+][0-9]+)?\),([0-9A-F]+H?|[0-9]+)$/);
   if (ldIXYdNMatch) {
     const isIY = ldIXYdNMatch[1] === 'IY';
-    const d = parseInt(ldIXYdNMatch[2], 16);
-    const n = parseInt(ldIXYdNMatch[3], 16);
-    const offset = d > 127 ? d - 256 : d;
-    return [isIY ? 0xfd : 0xdd, 0x36, offset & 0xff, n & 0xff];
+    const dStr = ldIXYdNMatch[2] || '0';
+    const valStr = ldIXYdNMatch[3];
+    const d = dStr.endsWith('H') ? parseInt(dStr.slice(0, -1), 16) : parseInt(dStr, 10);
+    const n = valStr.endsWith('H') ? parseInt(valStr.slice(0, -1), 16) : parseInt(valStr, 10);
+    if (!isNaN(d) && !isNaN(n)) {
+      return [isIY ? 0xfd : 0xdd, 0x36, d & 0xff, n & 0xff];
+    }
   }
 
-  // LD A, (IX+d) / LD A, (IY+d)
-  const ldAIXYdMatch = compact.match(/^LDA,\((IX|IY)\+([0-9A-F]+)H?\)$/);
-  if (ldAIXYdMatch) {
-    const isIY = ldAIXYdMatch[1] === 'IY';
-    const d = parseInt(ldAIXYdMatch[2], 16);
-    const offset = d > 127 ? d - 256 : d;
-    return [isIY ? 0xfd : 0xdd, 0x7e, offset & 0xff];
-  }
-
-  // INC IX / INC IY / DEC IX / DEC IY
+  // INC/DEC IX / INC IY / DEC IX / DEC IY
   const incDecIXYMatch = compact.match(/^(INC|DEC)(IX|IY)$/);
   if (incDecIXYMatch) {
     const isInc = incDecIXYMatch[1] === 'INC';
     const isIY = incDecIXYMatch[2] === 'IY';
     return [isIY ? 0xfd : 0xdd, isInc ? 0x23 : 0x2b];
+  }
+
+  // INC/DEC (IX+d) / (IY+d)
+  const incDecIXYdMatch = compact.match(/^(INC|DEC)\((IX|IY)([-+][0-9A-F]+H?|[-+][0-9]+)?\)$/);
+  if (incDecIXYdMatch) {
+    const isInc = incDecIXYdMatch[1] === 'INC';
+    const isIY = incDecIXYdMatch[2] === 'IY';
+    const dStr = incDecIXYdMatch[3] || '0';
+    const d = dStr.endsWith('H') ? parseInt(dStr.slice(0, -1), 16) : parseInt(dStr, 10);
+    if (!isNaN(d)) {
+      return [isIY ? 0xfd : 0xdd, isInc ? 0x34 : 0x35, d & 0xff];
+    }
   }
 
   // PUSH IX / PUSH IY / POP IX / POP IY
@@ -288,6 +367,29 @@ export const assembleInstruction = (text: string, currentAddr: number): number[]
     const opcodes = [0x46, 0x56, 0x5e];
     return [0xed, opcodes[mode]];
   }
+
+  // ADD HL, rr
+  const addHLMatch = compact.match(/^ADDHL,(BC|DE|HL|SP)$/);
+  if (addHLMatch) {
+    const opcodes: Record<string, number> = { BC: 0x09, DE: 0x19, HL: 0x29, SP: 0x39 };
+    return [opcodes[addHLMatch[1]]];
+  }
+
+  // ADD IX/IY, rr
+  const addIXYMatch = compact.match(/^ADD(IX|IY),([-+]?[0-9A-F]+H?|[0-9]+|BC|DE|IX|IY|SP)$/);
+  if (addIXYMatch) {
+    const prefix = addIXYMatch[1] === 'IY' ? 0xfd : 0xdd;
+    const arg = addIXYMatch[2];
+    const rrMap: Record<string, number> = { BC: 0x09, DE: 0x19, IX: 0x29, IY: 0x29, SP: 0x39 };
+    if (arg in rrMap) {
+      return [prefix, rrMap[arg]];
+    }
+    // Note: Z80 doesn't have "ADD IX, nn", but the compiler might generate it.
+    // If it's a number, we'll ignore it for now or return [] to avoid wrong machine code.
+  }
+
+  // LD SP, HL
+  if (compact === 'LDSP,HL') return [0xf9];
 
   // 16-bit ADC HL,ss
   const adcHLMatch = compact.match(/^ADCHL,(BC|DE|HL|SP)$/);

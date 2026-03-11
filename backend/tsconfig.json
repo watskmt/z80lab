@@ -23,7 +23,8 @@
     /* Paths */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["resources/js/*"]
+      "@/*": ["resources/js/*"],
+      "@compiler/*": ["../z80lab_compiler/resource/js/compiler/*"]
     }
   },
   "include": ["resources/js/**/*.ts", "resources/js/**/*.tsx", "vite.config.ts"]

@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import laravel from 'laravel-vite-plugin';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import path from 'path';
 
 export default defineConfig({
     plugins: [
@@ -20,5 +21,10 @@ export default defineConfig({
     },
     build: {
         sourcemap: true,
-    }
+    },
+    resolve: {
+        alias: {
+            '@compiler': path.resolve(__dirname, '../z80lab_compiler/resource/js/compiler'),
+        },
+    },
 });

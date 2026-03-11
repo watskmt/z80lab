@@ -13,6 +13,7 @@ import { RamPanel } from './RamPanel';
 import { StackPanel } from './StackPanel';
 import { CodeGenerator } from './CodeGenerator';
 import { useZ80 } from '../hooks/useZ80';
+import { Compiler } from '@compiler/Compiler';
 
 
 const MainGrid = styled.div`
@@ -266,6 +267,7 @@ export default function Main() {
   const [editingStackAddr, setEditingStackAddr] = useState<number | null>(null);
   const [editStackVal, setEditStackVal] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cFileInputRef = useRef<HTMLInputElement>(null);
 
   const handleUpdateCode = (addr: number, text: string) => {
     const bytes = assembleInstruction(text, addr);
@@ -309,29 +311,59 @@ export default function Main() {
   };
 
   const loadAsmText = (text: string) => {
-    const lines = text.split('\n');
+    const rawLines = text.split('\n');
+
+    const isDirective = (s: string) =>
+      !s || s === '-' || s.startsWith('DB') || s.startsWith('DW') || s.startsWith('ORG') || s.startsWith('END');
+
+    // Strip label prefix from a line, returning [labelOrNull, instrLine]
+    const stripLabel = (line: string): [string | null, string] => {
+      const m = line.match(/^([A-Za-z_]\w*):\s*(.*)/);
+      return m ? [m[1], m[2].trim()] : [null, line.trim()];
+    };
+
+    // Pass 1: collect label → address
+    const labelMap: Record<string, number> = {};
+    let addr = CODE_BASE;
+    for (const rawLine of rawLines) {
+      const stripped = rawLine.split(';')[0].trim();
+      if (!stripped) continue;
+      const [label, instr] = stripLabel(stripped);
+      if (label !== null) labelMap[label] = addr;
+      if (!instr) continue;
+      const s = instr.toUpperCase().trim();
+      if (isDirective(s)) continue;
+      // Substitute dummy address for unknown labels to get correct byte count
+      const resolved = instr.replace(/\b([A-Za-z_]\w*)\b/g, (m) => (m in labelMap ? labelMap[m].toString() : '0'));
+      const bytes = assembleInstruction(resolved, addr);
+      addr += bytes.length > 0 ? bytes.length : 1;
+    }
+
+    // Pass 2: assemble with full label resolution
     const newMem = new Uint8Array(MEM_SIZE);
     let currentAddr = CODE_BASE;
-    let hasError = false;
-    lines.forEach((line) => {
-      if (!line.trim() || line.trim().startsWith(';')) return;
-      const bytes = assembleInstruction(line, currentAddr);
+    const errorLines: string[] = [];
+    rawLines.forEach((rawLine, idx) => {
+      const stripped = rawLine.split(';')[0].trim();
+      if (!stripped) return;
+      const [, instr] = stripLabel(stripped);
+      if (!instr) return;
+      const s = instr.toUpperCase().trim();
+      if (isDirective(s)) return;
+      const resolved = instr.replace(/\b([A-Za-z_]\w*)\b/g, (m) => (m in labelMap ? labelMap[m].toString() : m));
+      const bytes = assembleInstruction(resolved, currentAddr);
       if (bytes.length > 0) {
-        bytes.forEach((b) => {
-          if (currentAddr < MEM_SIZE) newMem[currentAddr++] = b;
-        });
+        bytes.forEach((b) => { if (currentAddr < MEM_SIZE) newMem[currentAddr++] = b; });
       } else {
-        const s = line.split(';')[0].toUpperCase().trim();
-        if (s && s !== '-' && !s.startsWith('DB') && !s.startsWith('DW') && !s.startsWith('ORG') && !s.startsWith('END')) {
-          console.warn('Failed to assemble instruction:', line);
-          hasError = true;
-        }
+        console.warn('Failed to assemble instruction:', rawLine);
+        errorLines.push(`Line ${idx + 1}: ${rawLine.trim()}`);
       }
     });
+
     setCodeMemory(newMem);
     resetState();
-    if (hasError) {
-      alert('Some instructions could not be assembled. Check the console for details.');
+    if (errorLines.length > 0) {
+      alert(`Failed to assemble ${errorLines.length} instruction(s):\n\n${errorLines.join('\n')}`);
     }
   };
 
@@ -344,6 +376,25 @@ export default function Main() {
       loadAsmText(text);
     };
     reader.readAsText(file);
+  };
+
+  const loadC = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const source = ev.target?.result as string;
+      const compiler = new Compiler({ sourceFile: file.name, origin: 0x0000 });
+      const result = compiler.compile(source);
+      if (!result.success) {
+        const messages = result.errors.map(err => `${err.file}:${err.line}:${err.col}: ${err.message}`).join('\n');
+        alert(`Compile errors:\n${messages}`);
+        return;
+      }
+      loadAsmText(result.assembly);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
 
@@ -373,6 +424,15 @@ export default function Main() {
                 Save ASM
               </HeaderButton>
               <CodeGenerator onLoadCode={loadAsmText} />
+              <HeaderButton variant="green" onClick={() => cFileInputRef.current?.click()}>
+                Import C
+              </HeaderButton>
+              <HiddenInput
+                type="file"
+                ref={cFileInputRef}
+                onChange={loadC}
+                accept=".c"
+              />
               <HeaderButton variant="green" onClick={() => fileInputRef.current?.click()}>
                 Load ASM
               </HeaderButton>
