@@ -91,7 +91,7 @@ export class Compiler {
       }
 
       // 4. コード生成
-      const codegen = new Z80CodeGen(semantic, this.options.sourceFile);
+      const codegen = new Z80CodeGen(this.options.sourceFile);
       const result = codegen.generate(ast);
 
       return {
