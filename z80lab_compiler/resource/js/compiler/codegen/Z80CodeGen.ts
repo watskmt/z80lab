@@ -1,7 +1,6 @@
 // Z80CodeGen.ts - Z80アセンブリコード生成器（ソースマップ付き）
 
 import * as AST from '../parser/AST';
-import { SemanticAnalyzer } from '../semantic/SemanticAnalyzer';
 
 export interface SourceMapping {
   asmLine: number;
@@ -38,7 +37,6 @@ export class Z80CodeGen {
   private globalVars: { name: string; type: AST.CType }[] = [];
 
   constructor(
-    private semantic: SemanticAnalyzer,
     private sourceFile = 'input.c'
   ) {}
 

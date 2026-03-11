@@ -129,7 +129,6 @@ export class Lexer {
     const startLine = this.line, startCol = this.col;
     const ch = this.peek();
     const ch2 = ch + this.peek(1);
-    const ch3 = ch2 + this.peek(2);
 
     // 3文字演算子（なし、将来拡張用）
 
