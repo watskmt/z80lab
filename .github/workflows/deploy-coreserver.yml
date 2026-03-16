@@ -30,6 +30,12 @@ jobs:
         working-directory: ./backend
         run: composer install --optimize-autoloader
 
+      - name: Setup .env for testing
+        working-directory: ./backend
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
       - name: Install Frontend Dependencies
         working-directory: ./backend
         run: npm install
