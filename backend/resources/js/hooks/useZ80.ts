@@ -1075,33 +1075,101 @@ export function useZ80() {
                     if (subOp === 0x21) {
                         r[idxReg] = m[r.PC++] | (m[r.PC++] << 8);
                     } // LD IX/IY, nn
+                    else if (subOp === 0x22) {
+                        const adr = m[r.PC++] | (m[r.PC++] << 8);
+                        set16(adr, r[idxReg]);
+                    } // LD (nn), IX/IY
+                    else if (subOp === 0x2a) {
+                        const adr = m[r.PC++] | (m[r.PC++] << 8);
+                        r[idxReg] = get16(adr);
+                    } // LD IX/IY, (nn)
                     else if (subOp === 0x36) {
-                        let d = m[r.PC++];
-                        if (d > 127) d -= 256;
+                        let d = m[r.PC++]; if (d > 127) d -= 256;
                         set8((r[idxReg] + d) & 0xffff, m[r.PC++], CODE_BASE);
                     } // LD (IX/IY+d), n
-                    else if (subOp === 0x7e) {
-                        let d = m[r.PC++];
-                        if (d > 127) d -= 256;
-                        r.A = get8((r[idxReg] + d) & 0xffff);
-                    } // LD A, (IX/IY+d)
-                    else if (subOp === 0x77) {
-                        let d = m[r.PC++];
-                        if (d > 127) d -= 256;
-                        set8((r[idxReg] + d) & 0xffff, r.A, CODE_BASE);
-                    } // LD (IX/IY+d), A
-                    else if (subOp === 0x23) {
-                        r[idxReg] = (r[idxReg] + 1) & 0xffff;
-                    } // INC IX/IY
-                    else if (subOp === 0x2b) {
-                        r[idxReg] = (r[idxReg] - 1) & 0xffff;
-                    } // DEC IX/IY
-                    else if (subOp === 0xe5) {
-                        push(r[idxReg]);
-                    } // PUSH IX/IY
-                    else if (subOp === 0xe1) {
-                        r[idxReg] = pop();
-                    } // POP IX/IY
+                    else if ((subOp & 7) === 6 && subOp >= 0x40 && subOp <= 0x7e && subOp !== 0x76) {
+                        // LD r, (IX/IY+d)  — destination reg in bits 5-3
+                        let d = m[r.PC++]; if (d > 127) d -= 256;
+                        setReg((subOp >> 3) & 7, get8((r[idxReg] + d) & 0xffff));
+                    }
+                    else if ((subOp >> 3 & 7) === 6 && subOp >= 0x70 && subOp <= 0x77 && subOp !== 0x76) {
+                        // LD (IX/IY+d), r  — source reg in bits 2-0
+                        let d = m[r.PC++]; if (d > 127) d -= 256;
+                        set8((r[idxReg] + d) & 0xffff, getReg(subOp & 7), CODE_BASE);
+                    }
+                    else if (subOp === 0x34) {
+                        let d = m[r.PC++]; if (d > 127) d -= 256;
+                        const adr = (r[idxReg] + d) & 0xffff;
+                        const v = add8(get8(adr), 1); set8(adr, v);
+                        r.F = (r.F & C_FLAG) | (SZP_TABLE[v] & ~C_FLAG);
+                    } // INC (IX/IY+d)
+                    else if (subOp === 0x35) {
+                        let d = m[r.PC++]; if (d > 127) d -= 256;
+                        const adr = (r[idxReg] + d) & 0xffff;
+                        const v = sub8(get8(adr), 1); set8(adr, v);
+                        r.F = (r.F & C_FLAG) | (SZP_TABLE[v] & ~C_FLAG) | N_FLAG;
+                    } // DEC (IX/IY+d)
+                    else if (subOp === 0x86) {
+                        let d = m[r.PC++]; if (d > 127) d -= 256;
+                        r.A = add8(r.A, get8((r[idxReg] + d) & 0xffff));
+                    } // ADD A, (IX/IY+d)
+                    else if (subOp === 0x8e) {
+                        let d = m[r.PC++]; if (d > 127) d -= 256;
+                        r.A = add8(r.A, get8((r[idxReg] + d) & 0xffff), r.F & C_FLAG);
+                    } // ADC A, (IX/IY+d)
+                    else if (subOp === 0x96) {
+                        let d = m[r.PC++]; if (d > 127) d -= 256;
+                        r.A = sub8(r.A, get8((r[idxReg] + d) & 0xffff));
+                    } // SUB (IX/IY+d)
+                    else if (subOp === 0x9e) {
+                        let d = m[r.PC++]; if (d > 127) d -= 256;
+                        r.A = sub8(r.A, get8((r[idxReg] + d) & 0xffff), r.F & C_FLAG);
+                    } // SBC A, (IX/IY+d)
+                    else if (subOp === 0xa6) {
+                        let d = m[r.PC++]; if (d > 127) d -= 256;
+                        and8(get8((r[idxReg] + d) & 0xffff));
+                    } // AND (IX/IY+d)
+                    else if (subOp === 0xae) {
+                        let d = m[r.PC++]; if (d > 127) d -= 256;
+                        xor8(get8((r[idxReg] + d) & 0xffff));
+                    } // XOR (IX/IY+d)
+                    else if (subOp === 0xb6) {
+                        let d = m[r.PC++]; if (d > 127) d -= 256;
+                        or8(get8((r[idxReg] + d) & 0xffff));
+                    } // OR (IX/IY+d)
+                    else if (subOp === 0xbe) {
+                        let d = m[r.PC++]; if (d > 127) d -= 256;
+                        cp8(r.A, get8((r[idxReg] + d) & 0xffff));
+                    } // CP (IX/IY+d)
+                    else if (subOp === 0x09) {
+                        const res = (r[idxReg] + ((r.B << 8) | r.C)) & 0xffff;
+                        r.F = (r.F & ~(N_FLAG | C_FLAG | H_FLAG)) | (res < r[idxReg] ? C_FLAG : 0);
+                        r[idxReg] = res;
+                    } // ADD IX/IY, BC
+                    else if (subOp === 0x19) {
+                        const res = (r[idxReg] + ((r.D << 8) | r.E)) & 0xffff;
+                        r.F = (r.F & ~(N_FLAG | C_FLAG | H_FLAG)) | (res < r[idxReg] ? C_FLAG : 0);
+                        r[idxReg] = res;
+                    } // ADD IX/IY, DE
+                    else if (subOp === 0x29) {
+                        const res = (r[idxReg] + r[idxReg]) & 0xffff;
+                        r.F = (r.F & ~(N_FLAG | C_FLAG | H_FLAG)) | (res < r[idxReg] ? C_FLAG : 0);
+                        r[idxReg] = res;
+                    } // ADD IX/IY, IX/IY
+                    else if (subOp === 0x39) {
+                        const res = (r[idxReg] + r.SP) & 0xffff;
+                        r.F = (r.F & ~(N_FLAG | C_FLAG | H_FLAG)) | (res < r[idxReg] ? C_FLAG : 0);
+                        r[idxReg] = res;
+                    } // ADD IX/IY, SP
+                    else if (subOp === 0x23) { r[idxReg] = (r[idxReg] + 1) & 0xffff; } // INC IX/IY
+                    else if (subOp === 0x2b) { r[idxReg] = (r[idxReg] - 1) & 0xffff; } // DEC IX/IY
+                    else if (subOp === 0xe5) { push(r[idxReg]); } // PUSH IX/IY
+                    else if (subOp === 0xe1) { r[idxReg] = pop(); } // POP IX/IY
+                    else if (subOp === 0xf9) { r.SP = r[idxReg]; } // LD SP, IX/IY
+                    else if (subOp === 0xe9) { r.PC = r[idxReg]; } // JP (IX/IY)
+                    else if (subOp === 0xe3) { // EX (SP), IX/IY
+                        const tmp = get16(r.SP); set16(r.SP, r[idxReg]); r[idxReg] = tmp;
+                    }
                     break;
                 }
                 default:

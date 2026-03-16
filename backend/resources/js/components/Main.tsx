@@ -260,6 +260,7 @@ export default function Main() {
     // injectTailwind(); // Remove injectTailwind call
   }, []);
 
+  const [addrToCSrc, setAddrToCSrc] = useState<Record<number, string>>({});
   const [editingAddr, setEditingAddr] = useState<number | null>(null);
   const [editVal, setEditVal] = useState('');
   const [editingRamAddr, setEditingRamAddr] = useState<number | null>(null);
@@ -343,10 +344,22 @@ export default function Main() {
     const newMem = new Uint8Array(MEM_SIZE);
     let currentAddr = CODE_BASE;
     const errorLines: string[] = [];
+    const newAddrToCSrc: Record<number, string> = {};
+    let pendingCSrc: string | null = null;
     rawLines.forEach((rawLine, idx) => {
+      // Detect C source annotation emitted by Z80CodeGen: "; N: source line"
+      const cSrcMatch = rawLine.match(/^\s*;\s*\d+:\s*(.+)$/);
+      if (cSrcMatch) {
+        pendingCSrc = cSrcMatch[1].trim();
+        return;
+      }
       const stripped = rawLine.split(';')[0].trim();
       if (!stripped) return;
-      const [, instr] = stripLabel(stripped);
+      const [label, instr] = stripLabel(stripped);
+      if (pendingCSrc !== null && (label !== null || instr)) {
+        newAddrToCSrc[currentAddr] = pendingCSrc;
+        pendingCSrc = null;
+      }
       if (!instr) return;
       const s = instr.toUpperCase().trim();
       if (isDirective(s)) return;
@@ -361,6 +374,7 @@ export default function Main() {
     });
 
     setCodeMemory(newMem);
+    setAddrToCSrc(newAddrToCSrc);
     resetState();
     if (errorLines.length > 0) {
       alert(`Failed to assemble ${errorLines.length} instruction(s):\n\n${errorLines.join('\n')}`);
@@ -490,6 +504,7 @@ export default function Main() {
                   setEditVal={setEditVal}
                   handleUpdateCode={handleUpdateCode}
                   CODE_BASE={CODE_BASE}
+                  addrToCSrc={addrToCSrc}
                 />
 
                 <RamPanel

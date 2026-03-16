@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import styled from 'styled-components';
 import { hex4 } from '../constants';
 import { disasm } from '../utils/assembler';
@@ -67,6 +67,7 @@ interface ProgramPanelProps {
   setEditVal: (val: string) => void;
   handleUpdateCode: (addr: number, text: string) => void;
   CODE_BASE: number;
+  addrToCSrc?: Record<number, string>;
 }
 
 const PanelContainer = styled.div`
@@ -183,6 +184,19 @@ const SuggestionItem = styled.li<{ $isSelected: boolean }>`
   }
 `;
 
+const CSourceComment = styled.div`
+  font-size: 0.65rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+  color: #6ee7b7;
+  opacity: 0.75;
+  padding: 0.125rem 0.25rem 0 0.25rem;
+  margin-top: 0.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
 export const ProgramPanel: React.FC<ProgramPanelProps> = ({
   codeMemory,
   pc,
@@ -192,9 +206,26 @@ export const ProgramPanel: React.FC<ProgramPanelProps> = ({
   setEditVal,
   handleUpdateCode,
   CODE_BASE,
+  addrToCSrc,
 }) => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const currentLineRef = useRef<HTMLDivElement>(null);
+  const codeAreaRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = currentLineRef.current;
+    const container = codeAreaRef.current;
+    if (!el || !container) return;
+    const elRect = el.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const margin = 48;
+    if (elRect.top < containerRect.top + margin) {
+      container.scrollTop -= containerRect.top + margin - elRect.top;
+    } else if (elRect.bottom > containerRect.bottom - margin) {
+      container.scrollTop += elRect.bottom - containerRect.bottom + margin;
+    }
+  }, [pc]);
 
   // サジェスチョンを計算する関数
   const getSuggestions = (value: string): string[] => {
@@ -258,9 +289,13 @@ export const ProgramPanel: React.FC<ProgramPanelProps> = ({
   return (
     <PanelContainer>
       <Title>PROGRAM</Title>
-      <CodeArea className="custom-scrollbar">
+      <CodeArea className="custom-scrollbar" ref={codeAreaRef}>
         {disasm(codeMemory, CODE_BASE).map((l, i) => (
-          <CodeLine key={i} $isCurrent={l.addr === pc}>
+          <React.Fragment key={i}>
+          {addrToCSrc?.[l.addr] && (
+            <CSourceComment>{'// ' + addrToCSrc[l.addr]}</CSourceComment>
+          )}
+          <CodeLine $isCurrent={l.addr === pc} ref={l.addr === pc ? currentLineRef : undefined}>
             <Address $isCurrent={l.addr === pc}>{hex4(l.addr)}</Address>
             {editingAddr === l.addr ? (
               <SuggestionContainer>
@@ -303,6 +338,7 @@ export const ProgramPanel: React.FC<ProgramPanelProps> = ({
               </InstructionText>
             )}
           </CodeLine>
+          </React.Fragment>
         ))}
       </CodeArea>
     </PanelContainer>
