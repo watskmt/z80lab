@@ -36,6 +36,8 @@ jobs:
 
       - name: Run Vitest
         working-directory: ./backend
+        env:
+          LARAVEL_BYPASS_ENV_CHECK: 1
         run: npm test
 
       - name: Run PHPUnit
