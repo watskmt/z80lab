@@ -8,6 +8,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      LARAVEL_BYPASS_ENV_CHECK: 1
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -40,10 +42,12 @@ jobs:
         working-directory: ./backend
         run: npm install
 
+      - name: Build Frontend (for PHPUnit)
+        working-directory: ./backend
+        run: npm run build
+
       - name: Run Vitest
         working-directory: ./backend
-        env:
-          LARAVEL_BYPASS_ENV_CHECK: 1
         run: npm test
 
       - name: Run PHPUnit
