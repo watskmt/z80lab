@@ -299,7 +299,7 @@ export default function Main() {
 
   const saveAsm = () => {
     const lines = disasm(codeMemory, CODE_BASE)
-      .filter((l) => l.text !== '-' && !l.text.startsWith('DB 00'))
+      .filter((l) => l.text !== '-' && !l.text.startsWith('?? 00'))
       .map((l) => l.text);
     const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -391,6 +391,7 @@ export default function Main() {
         alert(`Compile errors:\n${messages}`);
         return;
       }
+      console.log('[Compiler] Generated assembly:\n' + result.assembly);
       loadAsmText(result.assembly);
     };
     reader.readAsText(file);

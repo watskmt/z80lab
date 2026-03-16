@@ -431,16 +431,46 @@ export function disasm(code: Uint8Array, start: number, count = 128) {
       switch (op) {
         case 0x00: text = 'NOP'; pc += 1; break;
         case 0x01: text = `LD BC,${hex4(code[pc + 1] | (code[pc + 2] << 8))}`; pc += 3; break;
+        case 0x03: text = 'INC BC'; pc += 1; break;
+        case 0x04: text = 'INC B'; pc += 1; break;
+        case 0x05: text = 'DEC B'; pc += 1; break;
         case 0x06: text = `LD B,${hex2(code[pc + 1])}`; pc += 2; break;
         case 0x08: text = 'EX AF,AF\''; pc += 1; break;
+        case 0x09: text = 'ADD HL,BC'; pc += 1; break;
+        case 0x0b: text = 'DEC BC'; pc += 1; break;
+        case 0x0c: text = 'INC C'; pc += 1; break;
+        case 0x0d: text = 'DEC C'; pc += 1; break;
         case 0x0e: text = `LD C,${hex2(code[pc + 1])}`; pc += 2; break;
         case 0x11: text = `LD DE,${hex4(code[pc + 1] | (code[pc + 2] << 8))}`; pc += 3; break;
+        case 0x13: text = 'INC DE'; pc += 1; break;
+        case 0x14: text = 'INC D'; pc += 1; break;
+        case 0x15: text = 'DEC D'; pc += 1; break;
         case 0x16: text = `LD D,${hex2(code[pc + 1])}`; pc += 2; break;
+        case 0x19: text = 'ADD HL,DE'; pc += 1; break;
+        case 0x1b: text = 'DEC DE'; pc += 1; break;
+        case 0x1c: text = 'INC E'; pc += 1; break;
+        case 0x1d: text = 'DEC E'; pc += 1; break;
         case 0x1e: text = `LD E,${hex2(code[pc + 1])}`; pc += 2; break;
         case 0x21: text = `LD HL,${hex4(code[pc + 1] | (code[pc + 2] << 8))}`; pc += 3; break;
+        case 0x22: text = `LD (${hex4(code[pc + 1] | (code[pc + 2] << 8))}),HL`; pc += 3; break;
+        case 0x23: text = 'INC HL'; pc += 1; break;
+        case 0x24: text = 'INC H'; pc += 1; break;
+        case 0x25: text = 'DEC H'; pc += 1; break;
         case 0x26: text = `LD H,${hex2(code[pc + 1])}`; pc += 2; break;
+        case 0x29: text = 'ADD HL,HL'; pc += 1; break;
+        case 0x2a: text = `LD HL,(${hex4(code[pc + 1] | (code[pc + 2] << 8))})`; pc += 3; break;
+        case 0x2b: text = 'DEC HL'; pc += 1; break;
+        case 0x2c: text = 'INC L'; pc += 1; break;
+        case 0x2d: text = 'DEC L'; pc += 1; break;
         case 0x2e: text = `LD L,${hex2(code[pc + 1])}`; pc += 2; break;
         case 0x31: text = `LD SP,${hex4(code[pc + 1] | (code[pc + 2] << 8))}`; pc += 3; break;
+        case 0x33: text = 'INC SP'; pc += 1; break;
+        case 0x34: text = 'INC (HL)'; pc += 1; break;
+        case 0x35: text = 'DEC (HL)'; pc += 1; break;
+        case 0x39: text = 'ADD HL,SP'; pc += 1; break;
+        case 0x3b: text = 'DEC SP'; pc += 1; break;
+        case 0x3c: text = 'INC A'; pc += 1; break;
+        case 0x3d: text = 'DEC A'; pc += 1; break;
         case 0x3e: text = `LD A,${hex2(code[pc + 1])}`; pc += 2; break;
         case 0x02: text = 'LD (BC),A'; pc += 1; break;
         case 0x12: text = 'LD (DE),A'; pc += 1; break;
@@ -450,8 +480,29 @@ export function disasm(code: Uint8Array, start: number, count = 128) {
         case 0x3a: text = `LD A,(${hex4(code[pc + 1] | (code[pc + 2] << 8))})`; pc += 3; break;
         case 0x36: text = `LD (HL),${hex2(code[pc + 1])}`; pc += 2; break;
         case 0x76: text = 'HALT'; pc += 1; break;
+        case 0xf9: text = 'LD SP,HL'; pc += 1; break;
+        case 0xc2: text = `JP NZ,${hex4(code[pc + 1] | (code[pc + 2] << 8))}`; pc += 3; break;
+        case 0xca: text = `JP Z,${hex4(code[pc + 1] | (code[pc + 2] << 8))}`; pc += 3; break;
+        case 0xd2: text = `JP NC,${hex4(code[pc + 1] | (code[pc + 2] << 8))}`; pc += 3; break;
+        case 0xda: text = `JP C,${hex4(code[pc + 1] | (code[pc + 2] << 8))}`; pc += 3; break;
+        case 0xe2: text = `JP PO,${hex4(code[pc + 1] | (code[pc + 2] << 8))}`; pc += 3; break;
+        case 0xea: text = `JP PE,${hex4(code[pc + 1] | (code[pc + 2] << 8))}`; pc += 3; break;
+        case 0xf2: text = `JP P,${hex4(code[pc + 1] | (code[pc + 2] << 8))}`; pc += 3; break;
+        case 0xfa: text = `JP M,${hex4(code[pc + 1] | (code[pc + 2] << 8))}`; pc += 3; break;
+        case 0x20: { let off = code[pc + 1]; if (off > 127) off -= 256; text = `JR NZ,${hex4(pc + 2 + off)}`; pc += 2; break; }
+        case 0x28: { let off = code[pc + 1]; if (off > 127) off -= 256; text = `JR Z,${hex4(pc + 2 + off)}`; pc += 2; break; }
+        case 0x30: { let off = code[pc + 1]; if (off > 127) off -= 256; text = `JR NC,${hex4(pc + 2 + off)}`; pc += 2; break; }
+        case 0x38: { let off = code[pc + 1]; if (off > 127) off -= 256; text = `JR C,${hex4(pc + 2 + off)}`; pc += 2; break; }
         case 0xc3: text = `JP ${hex4(code[pc + 1] | (code[pc + 2] << 8))}`; pc += 3; break;
         case 0xcd: text = `CALL ${hex4(code[pc + 1] | (code[pc + 2] << 8))}`; pc += 3; break;
+        case 0xc0: text = 'RET NZ'; pc += 1; break;
+        case 0xc8: text = 'RET Z'; pc += 1; break;
+        case 0xd0: text = 'RET NC'; pc += 1; break;
+        case 0xd8: text = 'RET C'; pc += 1; break;
+        case 0xe0: text = 'RET PO'; pc += 1; break;
+        case 0xe8: text = 'RET PE'; pc += 1; break;
+        case 0xf0: text = 'RET P'; pc += 1; break;
+        case 0xf8: text = 'RET M'; pc += 1; break;
         case 0xc9: text = 'RET'; pc += 1; break;
         case 0xd3: text = `OUT (${hex2(code[pc + 1])}),A`; pc += 2; break;
         case 0xdb: text = `IN A,(${hex2(code[pc + 1])})`; pc += 2; break;
@@ -524,18 +575,35 @@ export function disasm(code: Uint8Array, start: number, count = 128) {
           } else if (subOp === 0x36) {
             let d = code[pc + 2];
             if (d > 127) d -= 256;
-            text = `LD (${reg}+${hex2(d)}),${hex2(code[pc + 3])}`;
+            text = `LD (${reg}${d >= 0 ? '+' : ''}${d}),${hex2(code[pc + 3])}`;
             pc += 4;
-          } else if (subOp === 0x7e) {
+          } else if (subOp >= 0x40 && subOp <= 0x7f && subOp !== 0x76) {
             let d = code[pc + 2];
             if (d > 127) d -= 256;
-            text = `LD A,(${reg}+${hex2(d)})`;
-            pc += 3;
-          } else if (subOp === 0x77) {
-            let d = code[pc + 2];
-            if (d > 127) d -= 256;
-            text = `LD (${reg}+${hex2(d)}),A`;
-            pc += 3;
+            const rIdx = subOp & 7;
+            const dIdx = (subOp >> 3) & 7;
+            if (rIdx === 6) {
+              text = `LD ${REGS_LIST[dIdx]},(${reg}${d >= 0 ? '+' : ''}${d})`;
+              pc += 3;
+            } else if (dIdx === 6) {
+              text = `LD (${reg}${d >= 0 ? '+' : ''}${d}),${REGS_LIST[rIdx]}`;
+              pc += 3;
+            } else {
+              text = `${reg === 'IX' ? 'DD' : 'FD'} ${hex2(subOp)}`;
+              pc += 2;
+            }
+          } else if (subOp === 0x09) {
+            text = `ADD ${reg},BC`;
+            pc += 2;
+          } else if (subOp === 0x19) {
+            text = `ADD ${reg},DE`;
+            pc += 2;
+          } else if (subOp === 0x29) {
+            text = `ADD ${reg},${reg}`;
+            pc += 2;
+          } else if (subOp === 0x39) {
+            text = `ADD ${reg},SP`;
+            pc += 2;
           } else if (subOp === 0x23) {
             text = `INC ${reg}`;
             pc += 2;
@@ -548,6 +616,9 @@ export function disasm(code: Uint8Array, start: number, count = 128) {
           } else if (subOp === 0xe1) {
             text = `POP ${reg}`;
             pc += 2;
+          } else if (subOp === 0xf9) {
+            text = `LD SP,${reg}`;
+            pc += 2;
           } else {
             text = `${reg === 'IX' ? 'DD' : 'FD'} ${hex2(subOp)}`;
             pc += 2;
@@ -559,7 +630,7 @@ export function disasm(code: Uint8Array, start: number, count = 128) {
           else if ((op & 0xc7) === 0x05) text = `DEC ${REGS_LIST[(op >> 3) & 7]}`;
           else if ((op & 0xcf) === 0xc1) text = `POP ${['BC', 'DE', 'HL', 'AF'][(op >> 4) & 3]}`;
           else if ((op & 0xcf) === 0xc5) text = `PUSH ${['BC', 'DE', 'HL', 'AF'][(op >> 4) & 3]}`;
-          else text = op !== 0 ? `DB ${hex2(op)}` : '-';
+          else text = op !== 0 ? `?? ${hex2(op)}` : '-';
           pc += 1;
       }
     }
