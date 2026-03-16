@@ -6,7 +6,44 @@ on:
       - master
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, xml, ctype, iconv, mysql, sqlite
+          coverage: none
+
+      - name: Install PHP Dependencies
+        working-directory: ./backend
+        run: composer install --optimize-autoloader
+
+      - name: Install Frontend Dependencies
+        working-directory: ./backend
+        run: npm install
+
+      - name: Run Vitest
+        working-directory: ./backend
+        run: npm test
+
+      - name: Run PHPUnit
+        working-directory: ./backend
+        run: php artisan test
+
   build-and-deploy:
+    needs: test
     runs-on: ubuntu-latest
     environment:
       name: production-coreserver
