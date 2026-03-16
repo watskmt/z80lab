@@ -11,15 +11,15 @@ const GeneratorWrapper = styled.div`
   align-items: center;
 `;
 
-const TriggerButton = styled.button<{ active: boolean }>`
+const TriggerButton = styled.button<{ $active: boolean }>`
   padding: 0.25rem 0.5rem;
   height: 1.5rem;
-  background-color: ${props => props.active ? 'rgba(16, 185, 129, 0.2)' : '#47474a'};
-  color: ${props => props.active ? '#10b981' : '#e4e4e7'};
+  background-color: ${props => props.$active ? 'rgba(16, 185, 129, 0.2)' : '#47474a'};
+  color: ${props => props.$active ? '#10b981' : '#e4e4e7'};
   font-size: 8px;
   font-weight: 900;
   border-radius: 0.25rem;
-  border: 1px solid ${props => props.active ? '#10b981' : '#3f3f46'};
+  border: 1px solid ${props => props.$active ? '#10b981' : '#3f3f46'};
   text-transform: uppercase;
   cursor: pointer;
   display: flex;
@@ -28,7 +28,7 @@ const TriggerButton = styled.button<{ active: boolean }>`
   transition: all 0.15s;
 
   &:hover {
-    background-color: ${props => props.active ? 'rgba(16, 185, 129, 0.3)' : '#3f3f46'};
+    background-color: ${props => props.$active ? 'rgba(16, 185, 129, 0.3)' : '#3f3f46'};
   }
 `;
 
@@ -186,7 +186,7 @@ export const CodeGenerator: React.FC<CodeGeneratorProps> = ({ onLoadCode }) => {
 
   return (
     <GeneratorWrapper>
-      <TriggerButton active={isOpen} onClick={() => setIsOpen(!isOpen)} title="AI Sample Generator">
+      <TriggerButton $active={isOpen} onClick={() => setIsOpen(!isOpen)} title="AI Sample Generator">
         <svg style={{ width: '10px', height: '10px' }} fill="currentColor" viewBox="0 0 24 24">
           <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z" />
         </svg>

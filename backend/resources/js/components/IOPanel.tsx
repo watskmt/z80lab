@@ -91,15 +91,15 @@ const BitItem = styled.div`
   gap: 0.0625rem;
 `;
 
-const Lamp = styled.div<{ isOn: boolean }>`
+const Lamp = styled.div<{ $isOn: boolean }>`
   width: 100%;
   aspect-ratio: 1 / 1;
   border-radius: 9999px;
-  border: 1px solid ${(props) => (props.isOn ? '#fef08a' : '#18181b')};
+  border: 1px solid ${(props) => (props.$isOn ? '#fef08a' : '#18181b')};
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  background-color: ${(props) => (props.isOn ? '#facc15' : '#09090b')};
+  background-color: ${(props) => (props.$isOn ? '#facc15' : '#09090b')};
   box-shadow: ${(props) =>
-    props.isOn
+    props.$isOn
       ? '0 0 10px rgba(250, 204, 21, 0.8), inset 0 0 4px rgba(255, 255, 255, 0.5)'
       : 'inset 0 2px 4px rgba(0, 0, 0, 0.6)'};
   position: relative;
@@ -114,7 +114,7 @@ const Lamp = styled.div<{ isOn: boolean }>`
     background: white;
     filter: blur(2px);
     border-radius: 9999px;
-    opacity: ${(props) => (props.isOn ? 0.6 : 0)};
+    opacity: ${(props) => (props.$isOn ? 0.6 : 0)};
   }
 `;
 
@@ -158,19 +158,19 @@ const SwitchBase = styled.div`
   }
 `;
 
-const SwitchLabel = styled.span<{ active: boolean }>`
+const SwitchLabel = styled.span<{ $active: boolean }>`
   font-size: 9px;
   font-weight: 900;
-  color: ${(props) => (props.active ? '#fbbf24' : '#52525b')};
+  color: ${(props) => (props.$active ? '#fbbf24' : '#52525b')};
   transition: all 0.15s;
   text-shadow: ${(props) =>
-    props.active ? '0 0 8px rgba(251, 191, 36, 0.8)' : 'none'};
+    props.$active ? '0 0 8px rgba(251, 191, 36, 0.8)' : 'none'};
   user-select: none;
   letter-spacing: 0.02em;
   z-index: 1;
 `;
 
-const SwitchKnob = styled.div<{ isOn: boolean }>`
+const SwitchKnob = styled.div<{ $isOn: boolean }>`
   width: 90%;
   height: 1.5rem;
   border-radius: 0.25rem;
@@ -180,14 +180,14 @@ const SwitchKnob = styled.div<{ isOn: boolean }>`
   align-items: center;
   justify-content: center;
   background: ${(props) =>
-    props.isOn
+    props.$isOn
       ? 'linear-gradient(145deg, #dc2626, #991b1b)'
       : 'linear-gradient(145deg, #52525b, #3f3f46)'};
-  border: 1px solid ${(props) => (props.isOn ? '#7f1d1d' : '#27272a')};
+  border: 1px solid ${(props) => (props.$isOn ? '#7f1d1d' : '#27272a')};
   transform: ${(props) =>
-    props.isOn ? 'translateY(-0.4rem)' : 'translateY(0.4rem)'};
+    props.$isOn ? 'translateY(-0.4rem)' : 'translateY(0.4rem)'};
   box-shadow: ${(props) =>
-    props.isOn
+    props.$isOn
       ? '0 -2px 4px rgba(220, 38, 38, 0.3), 0 -4px 8px rgba(220, 38, 38, 0.2), inset 0 1px 2px rgba(255, 255, 255, 0.2)'
       : '0 2px 4px rgba(0, 0, 0, 0.5), 0 4px 8px rgba(0, 0, 0, 0.3), inset 0 -1px 2px rgba(0, 0, 0, 0.3)'};
 
@@ -200,7 +200,7 @@ const SwitchKnob = styled.div<{ isOn: boolean }>`
     width: 60%;
     height: 30%;
     background: ${(props) =>
-      props.isOn
+      props.$isOn
         ? 'linear-gradient(to bottom, rgba(255, 255, 255, 0.4), transparent)'
         : 'linear-gradient(to bottom, rgba(255, 255, 255, 0.15), transparent)'};
     border-radius: 2px;
@@ -216,27 +216,27 @@ const SwitchKnob = styled.div<{ isOn: boolean }>`
     width: 70%;
     height: 2px;
     background: ${(props) =>
-      props.isOn ? 'rgba(127, 29, 29, 0.6)' : 'rgba(0, 0, 0, 0.6)'};
+      props.$isOn ? 'rgba(127, 29, 29, 0.6)' : 'rgba(0, 0, 0, 0.6)'};
     border-radius: 1px;
     pointer-events: none;
   }
 `;
 
-const KnobGradient = styled.div<{ isOn: boolean }>`
+const KnobGradient = styled.div<{ $isOn: boolean }>`
   width: 80%;
   height: 4px;
   border-radius: 2px;
   background: ${(props) =>
-    props.isOn
+    props.$isOn
       ? 'linear-gradient(90deg, #7f1d1d, #dc2626, #7f1d1d)'
       : 'linear-gradient(90deg, #27272a, #52525b, #27272a)'};
   box-shadow: ${(props) =>
-    props.isOn
+    props.$isOn
       ? '0 0 4px rgba(220, 38, 38, 0.6)'
       : 'inset 0 1px 2px rgba(0, 0, 0, 0.5)'};
 `;
 
-const KnobIndicator = styled.div<{ isOn: boolean }>`
+const KnobIndicator = styled.div<{ $isOn: boolean }>`
   position: absolute;
   top: 50%;
   left: 50%;
@@ -245,10 +245,10 @@ const KnobIndicator = styled.div<{ isOn: boolean }>`
   height: 0.375rem;
   border-radius: 9999px;
   transition: all 0.2s;
-  background-color: ${(props) => (props.isOn ? '#fef08a' : '#27272a')};
-  border: 1px solid ${(props) => (props.isOn ? '#facc15' : '#18181b')};
+  background-color: ${(props) => (props.$isOn ? '#fef08a' : '#27272a')};
+  border: 1px solid ${(props) => (props.$isOn ? '#facc15' : '#18181b')};
   box-shadow: ${(props) =>
-    props.isOn
+    props.$isOn
       ? '0 0 8px rgba(250, 204, 21, 0.8), inset 0 0 4px rgba(255, 255, 255, 0.5)'
       : 'inset 0 1px 2px rgba(0, 0, 0, 0.5)'};
 `;
@@ -260,14 +260,14 @@ const BitLabel = styled.span`
   margin-top: 2px;
 `;
 
-const ModeBadge = styled.button<{ active: boolean }>`
+const ModeBadge = styled.button<{ $active: boolean }>`
   font-size: 8px;
   font-weight: 800;
   padding: 1px 4px;
   border-radius: 4px;
-  border: 1px solid ${props => props.active ? '#c084fc' : '#47474a'};
-  background: ${props => props.active ? 'rgba(192, 132, 252, 0.2)' : 'transparent'};
-  color: ${props => props.active ? '#c084fc' : '#a1a1aa'};
+  border: 1px solid ${props => props.$active ? '#c084fc' : '#47474a'};
+  background: ${props => props.$active ? 'rgba(192, 132, 252, 0.2)' : 'transparent'};
+  color: ${props => props.$active ? '#c084fc' : '#a1a1aa'};
   cursor: pointer;
   text-transform: uppercase;
   transition: all 0.2s;
@@ -290,10 +290,10 @@ export const IOPanel = ({ ioOut, ioIn, setIoIn }: IOPanelProps) => {
       <BitsRow>
         <NibbleGroup>
           {bits.slice(0, 4).map((bit) => {
-            const isOn = (ioOut & (1 << bit)) !== 0;
+            const $isOn = (ioOut & (1 << bit)) !== 0;
             return (
               <BitItem key={bit}>
-                <Lamp isOn={isOn} />
+                <Lamp $isOn={$isOn} />
                 <BitLabel>B{bit}</BitLabel>
               </BitItem>
             );
@@ -301,10 +301,10 @@ export const IOPanel = ({ ioOut, ioIn, setIoIn }: IOPanelProps) => {
         </NibbleGroup>
         <NibbleGroup>
           {bits.slice(4, 8).map((bit) => {
-            const isOn = (ioOut & (1 << bit)) !== 0;
+            const $isOn = (ioOut & (1 << bit)) !== 0;
             return (
               <BitItem key={bit}>
-                <Lamp isOn={isOn} />
+                <Lamp $isOn={$isOn} />
                 <BitLabel>B{bit}</BitLabel>
               </BitItem>
             );
@@ -320,16 +320,16 @@ export const IOPanel = ({ ioOut, ioIn, setIoIn }: IOPanelProps) => {
       <BitsRow>
         <NibbleGroup>
           {bits.slice(0, 4).map((bit) => {
-            const isOn = (ioIn & (1 << bit)) !== 0;
+            const $isOn = (ioIn & (1 << bit)) !== 0;
             return (
               <SwitchContainer key={bit}>
                 <SwitchBase onClick={() => toggleBit(bit)}>
-                  <SwitchLabel active={isOn}>1</SwitchLabel>
-                  <SwitchKnob isOn={isOn}>
-                    <KnobGradient isOn={isOn} />
-                    <KnobIndicator isOn={isOn} />
+                  <SwitchLabel $active={$isOn}>1</SwitchLabel>
+                  <SwitchKnob $isOn={$isOn}>
+                    <KnobGradient $isOn={$isOn} />
+                    <KnobIndicator $isOn={$isOn} />
                   </SwitchKnob>
-                  <SwitchLabel active={!isOn}>0</SwitchLabel>
+                  <SwitchLabel $active={!$isOn}>0</SwitchLabel>
                 </SwitchBase>
                 <BitLabel>B{bit}</BitLabel>
               </SwitchContainer>
@@ -338,16 +338,16 @@ export const IOPanel = ({ ioOut, ioIn, setIoIn }: IOPanelProps) => {
         </NibbleGroup>
         <NibbleGroup>
           {bits.slice(4, 8).map((bit) => {
-            const isOn = (ioIn & (1 << bit)) !== 0;
+            const $isOn = (ioIn & (1 << bit)) !== 0;
             return (
               <SwitchContainer key={bit}>
                 <SwitchBase onClick={() => toggleBit(bit)}>
-                  <SwitchLabel active={isOn}>1</SwitchLabel>
-                  <SwitchKnob isOn={isOn}>
-                    <KnobGradient isOn={isOn} />
-                    <KnobIndicator isOn={isOn} />
+                  <SwitchLabel $active={$isOn}>1</SwitchLabel>
+                  <SwitchKnob $isOn={$isOn}>
+                    <KnobGradient $isOn={$isOn} />
+                    <KnobIndicator $isOn={$isOn} />
                   </SwitchKnob>
-                  <SwitchLabel active={!isOn}>0</SwitchLabel>
+                  <SwitchLabel $active={!$isOn}>0</SwitchLabel>
                 </SwitchBase>
                 <BitLabel>B{bit}</BitLabel>
               </SwitchContainer>
@@ -361,8 +361,8 @@ export const IOPanel = ({ ioOut, ioIn, setIoIn }: IOPanelProps) => {
   return (
     <PanelContainer>
       <div style={{ display: 'flex', justifyContent: 'center', gap: '4px', marginBottom: '4px' }}>
-        <ModeBadge active={mode === 'mmio'} onClick={() => setMode('mmio')}>MMIO</ModeBadge>
-        <ModeBadge active={mode === 'io'} onClick={() => setMode('io')}>Standard IO</ModeBadge>
+        <ModeBadge $active={mode === 'mmio'} onClick={() => setMode('mmio')}>MMIO</ModeBadge>
+        <ModeBadge $active={mode === 'io'} onClick={() => setMode('io')}>Standard IO</ModeBadge>
       </div>
       <Title>{mode === 'mmio' ? 'Memory Mapped I/O' : 'Standard I/O Port'}</Title>
 

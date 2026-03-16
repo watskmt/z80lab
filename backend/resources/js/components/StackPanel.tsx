@@ -56,26 +56,26 @@ const Table = styled.table`
   border-spacing: 0;
 `;
 
-const Row = styled.tr<{ isSP: boolean; touched: boolean }>`
+const Row = styled.tr<{ $isSP: boolean; $touched: boolean }>`
   background-color: ${(props) =>
-    props.isSP ? 'rgba(37, 99, 235, 0.4)' : 'transparent'};
-  border-left: ${(props) => (props.touched ? '2px solid #ef4444' : 'none')};
+    props.$isSP ? 'rgba(37, 99, 235, 0.4)' : 'transparent'};
+  border-left: ${(props) => (props.$touched ? '2px solid #ef4444' : 'none')};
 `;
 
-const AddrCell = styled.td<{ isSP: boolean; touched: boolean }>`
+const AddrCell = styled.td<{ $isSP: boolean; $touched: boolean }>`
   padding: 0.125rem 0.375rem;
   font-size: 14px;
   font-weight: 700;
   color: ${(props) =>
-    props.isSP ? '#93c5fd' : props.touched ? '#fca5a5' : '#92929b'};
+    props.$isSP ? '#93c5fd' : props.$touched ? '#fca5a5' : '#92929b'};
 `;
 
-const ValCell = styled.td<{ isSP: boolean; touched: boolean }>`
+const ValCell = styled.td<{ $isSP: boolean; $touched: boolean }>`
   padding: 0.125rem 0.375rem;
   text-align: right;
   font-size: 14px;
   font-weight: 900;
-  color: ${(props) => (props.isSP || props.touched ? '#ffffff' : '#d4d4d8')};
+  color: ${(props) => (props.$isSP || props.$touched ? '#ffffff' : '#d4d4d8')};
 `;
 
 const MarkerCell = styled.td`
@@ -154,9 +154,9 @@ export const StackPanel: React.FC<StackPanelProps> = ({
               const isChanged = currentVal !== prevVal;
 
               return (
-                <Row key={i} isSP={isSP} touched={isTouched}>
-                  <AddrCell isSP={isSP} touched={isTouched}>{hex4(addr)}</AddrCell>
-                  <ValCell isSP={isSP} touched={isTouched}>
+                <Row key={i} $isSP={isSP} $touched={isTouched}>
+                  <AddrCell $isSP={isSP} $touched={isTouched}>{hex4(addr)}</AddrCell>
+                  <ValCell $isSP={isSP} $touched={isTouched}>
                     {editingAddr === addr ? (
                       <ValueInput
                         autoFocus

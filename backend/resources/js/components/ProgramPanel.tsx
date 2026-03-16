@@ -106,23 +106,23 @@ const CodeArea = styled.div`
   padding: 0.25rem;
 `;
 
-const CodeLine = styled.div<{ isCurrent: boolean }>`
+const CodeLine = styled.div<{ $isCurrent: boolean }>`
   display: flex;
   gap: 0.375rem;
   padding: 0.125rem 0.25rem;
   border-radius: 0.25rem;
   margin-bottom: 0.125rem;
-  border: 1px solid ${(props) => (props.isCurrent ? '#eab308' : 'transparent')};
-  background-color: ${(props) => (props.isCurrent ? '#eab308' : 'transparent')};
-  color: ${(props) => (props.isCurrent ? '#000000' : '#a1a1aa')};
-  font-weight: ${(props) => (props.isCurrent ? '900' : 'normal')};
+  border: 1px solid ${(props) => (props.$isCurrent ? '#eab308' : 'transparent')};
+  background-color: ${(props) => (props.$isCurrent ? '#eab308' : 'transparent')};
+  color: ${(props) => (props.$isCurrent ? '#000000' : '#a1a1aa')};
+  font-weight: ${(props) => (props.$isCurrent ? '900' : 'normal')};
 `;
 
-const Address = styled.span<{ isCurrent: boolean }>`
+const Address = styled.span<{ $isCurrent: boolean }>`
   font-size: 0.75rem;
   flex-shrink: 0;
   font-weight: 700;
-  color: ${(props) => (props.isCurrent ? '#000000' : 'rgba(202, 138, 4, 0.8)')};
+  color: ${(props) => (props.$isCurrent ? '#000000' : 'rgba(202, 138, 4, 0.8)')};
 `;
 
 const InstructionInput = styled.input`
@@ -169,13 +169,13 @@ const SuggestionList = styled.ul`
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
 `;
 
-const SuggestionItem = styled.li<{ isSelected: boolean }>`
+const SuggestionItem = styled.li<{ $isSelected: boolean }>`
   padding: 0.25rem 0.5rem;
   cursor: pointer;
   font-size: 0.75rem;
   font-weight: 700;
-  background-color: ${(props) => (props.isSelected ? '#3b82f6' : 'transparent')};
-  color: ${(props) => (props.isSelected ? '#ffffff' : '#d4d4d8')};
+  background-color: ${(props) => (props.$isSelected ? '#3b82f6' : 'transparent')};
+  color: ${(props) => (props.$isSelected ? '#ffffff' : '#d4d4d8')};
 
   &:hover {
     background-color: #3b82f6;
@@ -260,8 +260,8 @@ export const ProgramPanel: React.FC<ProgramPanelProps> = ({
       <Title>PROGRAM</Title>
       <CodeArea className="custom-scrollbar">
         {disasm(codeMemory, CODE_BASE).map((l, i) => (
-          <CodeLine key={i} isCurrent={l.addr === pc}>
-            <Address isCurrent={l.addr === pc}>{hex4(l.addr)}</Address>
+          <CodeLine key={i} $isCurrent={l.addr === pc}>
+            <Address $isCurrent={l.addr === pc}>{hex4(l.addr)}</Address>
             {editingAddr === l.addr ? (
               <SuggestionContainer>
                 <InstructionInput
@@ -282,7 +282,7 @@ export const ProgramPanel: React.FC<ProgramPanelProps> = ({
                     {suggestions.map((suggestion, idx) => (
                       <SuggestionItem
                         key={suggestion}
-                        isSelected={idx === selectedIndex}
+                        $isSelected={idx === selectedIndex}
                         onMouseDown={() => handleSuggestionClick(suggestion, l.addr)}
                         onMouseEnter={() => setSelectedIndex(idx)}
                       >

@@ -56,28 +56,28 @@ const Table = styled.table`
   border-spacing: 0;
 `;
 
-const Row = styled.tr<{ touched: boolean; isHighlight: boolean }>`
+const Row = styled.tr<{ $touched: boolean; $isHighlight: boolean }>`
   background-color: ${(props) =>
-    props.isHighlight ? 'rgba(30, 58, 138, 0.8)' :
-    props.touched ? 'rgba(127, 29, 29, 0.4)' : 'transparent'};
+    props.$isHighlight ? 'rgba(30, 58, 138, 0.8)' :
+    props.$touched ? 'rgba(127, 29, 29, 0.4)' : 'transparent'};
   box-shadow: ${(props) =>
-    props.isHighlight ? 'inset 0 0 20px rgba(59, 130, 246, 0.6), 0 0 30px rgba(59, 130, 246, 0.4)' : 'none'};
+    props.$isHighlight ? 'inset 0 0 20px rgba(59, 130, 246, 0.6), 0 0 30px rgba(59, 130, 246, 0.4)' : 'none'};
   transition: all 0.15s ease-in-out;
 `;
 
-const AddrCell = styled.td<{ touched: boolean }>`
+const AddrCell = styled.td<{ $touched: boolean }>`
   padding: 4px 4px;
   font-size: 14px;
   font-weight: 700;
-  color: ${(props) => (props.touched ? '#fca5a5' : '#92929b')};
+  color: ${(props) => (props.$touched ? '#fca5a5' : '#92929b')};
 `;
 
-const ValCell = styled.td<{ touched: boolean }>`
+const ValCell = styled.td<{ $touched: boolean }>`
   padding: 4px 4px;
   text-align: right;
   font-size: 14px;
   font-weight: 900;
-  color: ${(props) => (props.touched ? '#ffffff' : '#d4d4d8')};
+  color: ${(props) => (props.$touched ? '#ffffff' : '#d4d4d8')};
 `;
 
 const TransitionText = styled.span`
@@ -149,9 +149,9 @@ export const RamPanel: React.FC<RamPanelProps> = ({
               const isChanged = currentVal !== prevVal;
 
               return (
-                <Row key={i} touched={isTouched} isHighlight={isHighlight}>
-                  <AddrCell touched={isTouched}>{hex4(addr)}</AddrCell>
-                  <ValCell touched={isTouched}>
+                <Row key={i} $touched={isTouched} $isHighlight={isHighlight}>
+                  <AddrCell $touched={isTouched}>{hex4(addr)}</AddrCell>
+                  <ValCell $touched={isTouched}>
                     {editingAddr === addr ? (
                       <ValueInput
                         autoFocus

@@ -35,10 +35,15 @@ export class Z80CodeGen {
   private currentRetLabel = '';
   private stringPool: { label: string; value: string }[] = [];
   private globalVars: { name: string; type: AST.CType }[] = [];
+  private sourceLines: string[] = [];
+  private lastCommentedLine = -1;
 
   constructor(
-    private sourceFile = 'input.c'
-  ) {}
+    private sourceFile = 'input.c',
+    sourceCode = ''
+  ) {
+    this.sourceLines = sourceCode.split('\n');
+  }
 
   generate(program: AST.Program): CodeGenResult {
     this.emit('; c2z80 generated Z80 assembly');
@@ -618,6 +623,13 @@ export class Z80CodeGen {
   }
 
   private emitMapped(line: string, srcLine: number, srcCol: number) {
+    if (srcLine > 0 && srcLine !== this.lastCommentedLine) {
+      const cLine = this.sourceLines[srcLine - 1]?.trim();
+      if (cLine) {
+        this.lines.push(`\t; ${srcLine}: ${cLine}`);
+        this.lastCommentedLine = srcLine;
+      }
+    }
     if (line) this.lines.push(line);
     this.mappings.push({
       asmLine: this.lines.length,

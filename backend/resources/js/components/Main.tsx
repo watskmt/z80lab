@@ -166,7 +166,7 @@ const HeaderActions = styled.div`
   height: 100%;
 `;
 
-const HeaderButton = styled.button<{ variant?: 'blue' | 'green' | 'red' }>`
+const HeaderButton = styled.button<{ $variant?: 'blue' | 'green' | 'red' }>`
   padding: 0.25rem 0.5rem; /* px-2 py-1 */
   height: 1.5rem; /* h-6 */
   background-color: #47474a; /* zinc-800 */
@@ -179,19 +179,19 @@ const HeaderButton = styled.button<{ variant?: 'blue' | 'green' | 'red' }>`
   transition: background-color 0.15s;
 
   color: ${props => {
-    if (props.variant === 'blue') return '#60a5fa';
-    if (props.variant === 'green') return '#4ade80';
-    if (props.variant === 'red') return '#f87171';
+    if (props.$variant === 'blue') return '#60a5fa';
+    if (props.$variant === 'green') return '#4ade80';
+    if (props.$variant === 'red') return '#f87171';
     return '#e4e4e7';
   }};
 
-  ${props => props.variant === 'red' && `
+  ${props => props.$variant === 'red' && `
     background-color: rgba(69, 10, 10, 0.3);
     border-color: rgba(69, 10, 10, 0.5);
     &:hover { background-color: rgba(69, 10, 10, 0.5); }
   `}
 
-  ${props => props.variant !== 'red' && `
+  ${props => props.$variant !== 'red' && `
     &:hover { background-color: #3f3f46; }
   `}
 `;
@@ -421,11 +421,11 @@ export default function Main() {
               </SocialLinkWrapper>
             </Logo>
             <HeaderActions>
-              <HeaderButton variant="blue" onClick={saveAsm}>
+              <HeaderButton $variant="blue" onClick={saveAsm}>
                 Save ASM
               </HeaderButton>
               <CodeGenerator onLoadCode={loadAsmText} />
-              <HeaderButton variant="green" onClick={() => cFileInputRef.current?.click()}>
+              <HeaderButton $variant="green" onClick={() => cFileInputRef.current?.click()}>
                 Import C
               </HeaderButton>
               <HiddenInput
@@ -434,7 +434,7 @@ export default function Main() {
                 onChange={loadC}
                 accept=".c"
               />
-              <HeaderButton variant="green" onClick={() => fileInputRef.current?.click()}>
+              <HeaderButton $variant="green" onClick={() => fileInputRef.current?.click()}>
                 Load ASM
               </HeaderButton>
               <HiddenInput
@@ -463,7 +463,7 @@ export default function Main() {
                   </option>
                 ))}
               </Select>
-              <HeaderButton variant="red" onClick={resetState}>
+              <HeaderButton $variant="red" onClick={resetState}>
                 RESET
               </HeaderButton>
             </HeaderActions>

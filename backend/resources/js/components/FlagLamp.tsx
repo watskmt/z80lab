@@ -7,7 +7,7 @@ interface FlagLampProps {
   desc: string;
 }
 
-const LampContainer = styled.div<{ isOn: boolean }>`
+const LampContainer = styled.div<{ $isOn: boolean }>`
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -19,33 +19,33 @@ const LampContainer = styled.div<{ isOn: boolean }>`
   border-style: solid;
   transition: all 0.3s ease-in-out;
   background-color: ${(props) =>
-    props.isOn ? 'rgba(239, 68, 68, 0.2)' : '#18181b'};
-  border-color: ${(props) => (props.isOn ? '#ef4444' : '#47474a')};
+    props.$isOn ? 'rgba(239, 68, 68, 0.2)' : '#18181b'};
+  border-color: ${(props) => (props.$isOn ? '#ef4444' : '#47474a')};
   box-shadow: ${(props) =>
-    props.isOn ? '0 0 6px rgba(239, 68, 68, 0.4)' : 'none'};
+    props.$isOn ? '0 0 6px rgba(239, 68, 68, 0.4)' : 'none'};
 `;
 
-const Label = styled.span<{ isOn: boolean }>`
+const Label = styled.span<{ $isOn: boolean }>`
   font-size: 0.875rem;
   font-weight: 900;
-  color: ${(props) => (props.isOn ? '#ef4444' : '#ffffff')};
+  color: ${(props) => (props.$isOn ? '#ef4444' : '#ffffff')};
 `;
 
-const Description = styled.span<{ isOn: boolean }>`
+const Description = styled.span<{ $isOn: boolean }>`
   font-size: 7px;
   font-weight: 700;
   margin-top: 0.125rem;
   text-transform: uppercase;
   text-align: center;
-  color: ${(props) => (props.isOn ? '#f87171' : '#52525b')};
+  color: ${(props) => (props.$isOn ? '#f87171' : '#52525b')};
 `;
 
 export const FlagLamp = ({ label, bit, val, desc }: FlagLampProps) => {
-  const isOn = (val & (1 << bit)) !== 0;
+  const $isOn = (val & (1 << bit)) !== 0;
   return (
-    <LampContainer isOn={isOn}>
-      <Label isOn={isOn}>{label}</Label>
-      <Description isOn={isOn}>{desc}</Description>
+    <LampContainer $isOn={$isOn}>
+      <Label $isOn={$isOn}>{label}</Label>
+      <Description $isOn={$isOn}>{desc}</Description>
     </LampContainer>
   );
 };
