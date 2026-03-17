@@ -26,9 +26,7 @@ const PanelContainer = styled.div`
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
   height: 100%;
 
-  @media (min-width: 768px) {
     grid-column: span 3 / span 3;
-  }
 `;
 
 const Title = styled.h2`

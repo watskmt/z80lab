@@ -13,10 +13,10 @@ const GeneratorWrapper = styled.div`
 
 const TriggerButton = styled.button<{ $active: boolean }>`
   padding: 0.25rem 0.5rem;
-  height: 1.5rem;
+  height: 1.8rem;
   background-color: ${props => props.$active ? 'rgba(16, 185, 129, 0.2)' : '#47474a'};
   color: ${props => props.$active ? '#10b981' : '#e4e4e7'};
-  font-size: 8px;
+  font-size: 14px;
   font-weight: 900;
   border-radius: 0.25rem;
   border: 1px solid ${props => props.$active ? '#10b981' : '#3f3f46'};
@@ -34,7 +34,7 @@ const TriggerButton = styled.button<{ $active: boolean }>`
 
 const Popover = styled.div`
   position: absolute;
-  top: 1.75rem;
+  top: 2.1rem;
   right: 0;
   width: 280px;
   background-color: #18181b;

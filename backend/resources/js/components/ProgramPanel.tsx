@@ -81,9 +81,6 @@ const PanelContainer = styled.div`
   overflow: hidden;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
 
-  @media (min-width: 768px) {
-    grid-column: span 2 / span 2;
-  }
 `;
 
 const Title = styled.h2`
@@ -110,9 +107,8 @@ const CodeArea = styled.div`
 const CodeLine = styled.div<{ $isCurrent: boolean }>`
   display: flex;
   gap: 0.375rem;
-  padding: 0.125rem 0.25rem;
+  padding: 2px 6px;
   border-radius: 0.25rem;
-  margin-bottom: 0.125rem;
   border: 1px solid ${(props) => (props.$isCurrent ? '#eab308' : 'transparent')};
   background-color: ${(props) => (props.$isCurrent ? '#eab308' : 'transparent')};
   color: ${(props) => (props.$isCurrent ? '#000000' : '#a1a1aa')};

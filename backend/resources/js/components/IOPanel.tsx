@@ -261,7 +261,7 @@ const BitLabel = styled.span`
 `;
 
 const ModeBadge = styled.button<{ $active: boolean }>`
-  font-size: 8px;
+  font-size: 12px;
   font-weight: 800;
   padding: 1px 4px;
   border-radius: 4px;

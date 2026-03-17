@@ -24,10 +24,6 @@ const PanelContainer = styled.div`
   flex-direction: column;
   overflow: hidden;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-
-  @media (min-width: 768px) {
-    grid-column: span 2 / span 2;
-  }
 `;
 
 const Title = styled.h2`
@@ -66,16 +62,18 @@ const Row = styled.tr<{ $touched: boolean; $isHighlight: boolean }>`
 `;
 
 const AddrCell = styled.td<{ $touched: boolean }>`
-  padding: 4px 4px;
-  font-size: 14px;
+  padding: 2px 6px;
+  font-size: 0.75rem;
   font-weight: 700;
   color: ${(props) => (props.$touched ? '#fca5a5' : '#92929b')};
+  white-space: nowrap;
+  width: 1px;
 `;
 
 const ValCell = styled.td<{ $touched: boolean }>`
-  padding: 4px 4px;
+  padding: 2px 6px;
   text-align: right;
-  font-size: 14px;
+  font-size: 0.75rem;
   font-weight: 900;
   color: ${(props) => (props.$touched ? '#ffffff' : '#d4d4d8')};
 `;
@@ -108,7 +106,7 @@ const ValueInput = styled.input`
   border-radius: 0.125rem;
   text-transform: uppercase;
   font-weight: 700;
-  font-size: 14px;
+  font-size: 0.75rem;
   border: none;
   outline: none;
   text-align: right;

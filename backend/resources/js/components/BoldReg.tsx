@@ -44,13 +44,9 @@ const Value = styled.span<{ $isChanged: boolean }>`
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     'Liberation Mono', 'Courier New', monospace;
   font-weight: 700;
-  font-size: 0.625rem;
   line-height: 1;
   color: ${(props) => (props.$isChanged ? '#ffffff' : '#f4f4f5')};
-
-  @media (min-width: 1024px) {
     font-size: 0.75rem;
-  }
 `;
 
 export const BoldReg = ({ label, val, prevVal, size = 2, highlight = false }: BoldRegProps) => {

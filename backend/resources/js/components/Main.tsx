@@ -18,15 +18,12 @@ import { Compiler } from '@compiler/Compiler';
 
 const MainGrid = styled.div`
   display: grid;
-  grid-template-columns: 1fr;
   gap: 0.125rem;
   flex-grow: 1;
   min-height: 0;
   overflow: hidden;
 
-  @media (min-width: 768px) {
-    grid-template-columns: repeat(9, minmax(0, 1fr));
-  }
+    grid-template-columns: repeat(8, minmax(0, 1fr));
 `;
 
 const RightSection = styled.div`
@@ -36,22 +33,17 @@ const RightSection = styled.div`
   min-height: 0;
   overflow: hidden;
 
-  @media (min-width: 768px) {
-    grid-column: span 6 / span 6;
-  }
+    grid-column: span 5 / span 5;
 `;
 
 const ContentGrid = styled.div`
   display: grid;
-  grid-template-columns: 1fr;
   gap: 0.125rem;
   flex-grow: 1;
   min-height: 0;
   overflow: hidden;
 
-  @media (min-width: 768px) {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
+    grid-template-columns: 1fr 150px 150px;
 `;
 
 const FooterAction = styled.div`
@@ -168,9 +160,9 @@ const HeaderActions = styled.div`
 
 const HeaderButton = styled.button<{ $variant?: 'blue' | 'green' | 'red' }>`
   padding: 0.25rem 0.5rem; /* px-2 py-1 */
-  height: 1.5rem; /* h-6 */
+  height: 1.8rem; /* h-6 */
   background-color: #47474a; /* zinc-800 */
-  font-size: 8px;
+  font-size: 14px;
   font-weight: 900;
   border-radius: 0.25rem;
   border: 1px solid #3f3f46; /* zinc-700 */
@@ -194,21 +186,22 @@ const HeaderButton = styled.button<{ $variant?: 'blue' | 'green' | 'red' }>`
   ${props => props.$variant !== 'red' && `
     &:hover { background-color: #3f3f46; }
   `}
+
 `;
 
 const Select = styled.select`
   background-color: #47474a;
   color: #e4e4e7;
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 700;
-  height: 1.5rem;
+  height: 1.8rem;
   padding: 0 0.5rem;
   border-radius: 0.25rem;
   border: 1px solid #3f3f46;
   outline: none;
   cursor: pointer;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-  width: 9rem;
+  width: 10rem;
   appearance: none;
 
   &:hover {
@@ -468,11 +461,11 @@ export default function Main() {
                 }}
                 defaultValue=""
               >
-                <option value="" disabled>
+                <option value="" disabled style={{ fontSize: '14px' }}>
                   SAMPLE CODE...
                 </option>
                 {Object.keys(samplePrograms).map((name) => (
-                  <option key={name} value={name}>
+                  <option key={name} value={name} style={{ fontSize: '14px' }}>
                     {sampleProgramLabels[name]}
                   </option>
                 ))}
