@@ -253,6 +253,15 @@ export default function Main() {
     // injectTailwind(); // Remove injectTailwind call
   }, []);
 
+  const [scale, setScale] = useState(1);
+  useEffect(() => {
+    const MIN_WIDTH = 650;
+    const update = () => setScale(Math.min(1, window.innerWidth / MIN_WIDTH));
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+
   const [addrToCSrc, setAddrToCSrc] = useState<Record<number, string>>({});
   const [editingAddr, setEditingAddr] = useState<number | null>(null);
   const [editVal, setEditVal] = useState('');
@@ -410,7 +419,7 @@ export default function Main() {
   return (
     <GlobalStyle>
       <PageContainer>
-        <MainWrapper>
+        <MainWrapper style={scale < 1 ? { zoom: scale } : undefined}>
           <Header>
             <Logo>
               Z80<LogoAccent>LAB</LogoAccent>
