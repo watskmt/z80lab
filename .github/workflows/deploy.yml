@@ -1,0 +1,166 @@
+name: Build and Deploy to VPS
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      LARAVEL_BYPASS_ENV_CHECK: 1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, xml, ctype, iconv, mysql, sqlite
+          coverage: none
+
+      - name: Install PHP Dependencies
+        working-directory: ./backend
+        run: composer install --optimize-autoloader
+
+      - name: Setup .env for testing
+        working-directory: ./backend
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Install Frontend Dependencies
+        working-directory: ./backend
+        run: npm install
+
+      - name: Build Frontend (for PHPUnit)
+        working-directory: ./backend
+        run: npm run build
+
+      - name: Run Vitest
+        working-directory: ./backend
+        run: npm test
+
+      - name: Run PHPUnit
+        working-directory: ./backend
+        run: php artisan test
+
+  build-and-deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    environment:
+      name: production-vps
+      url: https://watarusakamoto.com
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 1. Node.js のセットアップ
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      # 2. PHP のセットアップ
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, xml, ctype, iconv, mysql, sqlite
+          coverage: none
+
+      # 3. PHP依存関係インストール
+      - name: Install PHP Dependencies
+        working-directory: ./backend
+        run: composer install --no-dev --optimize-autoloader
+
+      # 4. フロントエンドビルド
+      - name: Install and Build Frontend
+        working-directory: ./backend
+        run: |
+          npm install
+          npm run build
+
+      # 5. Production .env の作成
+      - name: Create Production .env
+        working-directory: ./backend
+        run: |
+          cp .env.example .env
+          sed -i 's/APP_ENV=local/APP_ENV=production/g' .env
+          sed -i 's/APP_DEBUG=true/APP_DEBUG=false/g' .env
+          sed -i 's|APP_URL=http://localhost|APP_URL=https://watarusakamoto.com|g' .env
+          echo "ASSET_URL=https://watarusakamoto.com" >> .env
+          echo "APP_KEY=${{ secrets.APP_KEY }}" >> .env
+          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
+
+      # 6. SSH鍵のセットアップ
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      # 7. rsyncでLaravel本体をデプロイ
+      - name: Deploy Laravel to VPS
+        run: |
+          rsync -avz --delete \
+            --exclude='.git/' \
+            --exclude='node_modules/' \
+            --exclude='storage/logs/' \
+            --exclude='storage/framework/sessions/' \
+            --exclude='storage/framework/views/' \
+            --exclude='storage/framework/cache/' \
+            --exclude='database/database.sqlite' \
+            -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
+            ./backend/ \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/watarusakamoto.com/laravel/
+
+      # 8. public_htmlにフロントエンドをデプロイ
+      - name: Deploy Public to VPS
+        run: |
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
+            ./backend/public/ \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/watarusakamoto.com/public_html/
+
+      # 9. サーバー側でLaravelセットアップ
+      - name: Run Laravel Setup on VPS
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+            set -e
+            cd /var/www/watarusakamoto.com/laravel
+
+            # storageディレクトリの権限設定
+            chmod -R 775 storage bootstrap/cache
+
+            # SQLiteファイルが存在しない場合のみ作成
+            if [ ! -f database/database.sqlite ]; then
+              touch database/database.sqlite
+              chmod 664 database/database.sqlite
+            fi
+
+            # Laravelキャッシュクリア・最適化
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+            php artisan migrate --force
+
+            # Nginxリスタート
+            sudo systemctl reload nginx
+          EOF
+
+      - name: Show Deployment URL
+        run: echo "✅ Deployed to https://watarusakamoto.com"
