@@ -59,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production-vps
-      url: https://watarusakamoto.com
+      url: https://z80lab.watarusakamoto.com
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -99,8 +99,8 @@ jobs:
           cp .env.example .env
           sed -i 's/APP_ENV=local/APP_ENV=production/g' .env
           sed -i 's/APP_DEBUG=true/APP_DEBUG=false/g' .env
-          sed -i 's|APP_URL=http://localhost|APP_URL=https://watarusakamoto.com|g' .env
-          echo "ASSET_URL=https://watarusakamoto.com" >> .env
+          sed -i 's|APP_URL=http://localhost|APP_URL=https://z80lab.watarusakamoto.com|g' .env
+          echo "ASSET_URL=https://z80lab.watarusakamoto.com" >> .env
           echo "APP_KEY=${{ secrets.APP_KEY }}" >> .env
           echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
 
@@ -125,7 +125,7 @@ jobs:
             --exclude='database/database.sqlite' \
             -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
             ./backend/ \
-            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/watarusakamoto.com/laravel/
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/z80lab.watarusakamoto.com/laravel/
 
       # 8. public_htmlにフロントエンドをデプロイ
       - name: Deploy Public to VPS
@@ -133,7 +133,7 @@ jobs:
           rsync -avz --delete \
             -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
             ./backend/public/ \
-            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/watarusakamoto.com/public_html/
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/z80lab.watarusakamoto.com/public_html/
 
       # 9. サーバー側でLaravelセットアップ
       - name: Run Laravel Setup on VPS
@@ -141,7 +141,7 @@ jobs:
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no \
             ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
             set -e
-            cd /var/www/watarusakamoto.com/laravel
+            cd /var/www/z80lab.watarusakamoto.com/laravel
 
             # storageディレクトリの権限設定
             chmod -R 775 storage bootstrap/cache
@@ -163,4 +163,4 @@ jobs:
           EOF
 
       - name: Show Deployment URL
-        run: echo "✅ Deployed to https://watarusakamoto.com"
+        run: echo "✅ Deployed to https://z80lab.watarusakamoto.com"
