@@ -151,10 +151,8 @@ jobs:
             set -e
             cd /var/www/z80lab.watarusakamoto.com/laravel
 
-            # storageディレクトリの作成と権限設定
+            # storageディレクトリの作成（存在しない場合のみ）
             mkdir -p storage/framework/views storage/framework/sessions storage/framework/cache storage/logs bootstrap/cache
-            chown -R deploy:nginx storage bootstrap/cache
-            chmod -R 775 storage bootstrap/cache
 
             # SELinuxコンテキスト設定（Rocky Linux: httpd が書き込めるよう設定）
             sudo restorecon -R storage bootstrap/cache database
