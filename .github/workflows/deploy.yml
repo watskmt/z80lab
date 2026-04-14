@@ -59,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production-vps
-      url: https://z80lab.watarusakamoto.com
+      url: https://z80lab.com
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -92,19 +92,27 @@ jobs:
           npm install
           npm run build
 
-      # 5. Production .env の作成
+      # 5. index.php のパス修正（public_html と laravel が別ディレクトリのため）
+      - name: Fix index.php paths
+        working-directory: ./backend
+        run: |
+          sed -i "s|__DIR__.'/../storage/framework/maintenance.php'|__DIR__.'/../laravel/storage/framework/maintenance.php'|g" public/index.php
+          sed -i "s|__DIR__.'/../vendor/autoload.php'|__DIR__.'/../laravel/vendor/autoload.php'|g" public/index.php
+          sed -i "s|__DIR__.'/../bootstrap/app.php'|__DIR__.'/../laravel/bootstrap/app.php'|g" public/index.php
+
+      # 6. Production .env の作成
       - name: Create Production .env
         working-directory: ./backend
         run: |
           cp .env.example .env
           sed -i 's/APP_ENV=local/APP_ENV=production/g' .env
           sed -i 's/APP_DEBUG=true/APP_DEBUG=false/g' .env
-          sed -i 's|APP_URL=http://localhost|APP_URL=https://z80lab.watarusakamoto.com|g' .env
-          echo "ASSET_URL=https://z80lab.watarusakamoto.com" >> .env
-          echo "APP_KEY=${{ secrets.APP_KEY }}" >> .env
+          sed -i 's|APP_URL=http://localhost|APP_URL=https://z80lab.com|g' .env
+          echo "ASSET_URL=https://z80lab.com" >> .env
+          sed -i 's/^APP_KEY=$/APP_KEY=${{ secrets.APP_KEY }}/' .env
           echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> .env
 
-      # 6. SSH鍵のセットアップ
+      # 7. SSH鍵のセットアップ
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
@@ -145,7 +153,11 @@ jobs:
 
             # storageディレクトリの作成と権限設定
             mkdir -p storage/framework/views storage/framework/sessions storage/framework/cache storage/logs bootstrap/cache
-            chmod -R 775 storage bootstrap/cache
+            sudo chown -R deploy:nginx storage bootstrap/cache
+            sudo chmod -R 775 storage bootstrap/cache
+
+            # SELinuxコンテキスト設定（Rocky Linux: httpd が書き込めるよう設定）
+            sudo restorecon -R storage bootstrap/cache database
 
             # SQLiteファイルが存在しない場合のみ作成
             if [ ! -f database/database.sqlite ]; then
@@ -164,4 +176,4 @@ jobs:
           EOF
 
       - name: Show Deployment URL
-        run: echo "✅ Deployed to https://z80lab.watarusakamoto.com"
+        run: echo "✅ Deployed to https://z80lab.com"
