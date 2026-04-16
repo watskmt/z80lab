@@ -53,30 +53,29 @@ const FooterAction = styled.div`
   border: 1px solid #47474a; /* zinc-800 */
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-around;
   flex-shrink: 0;
-  position: relative;
 `;
 
-const Copyright = styled.span`
-  position: absolute;
-  right: 0.75rem;
-  font-size: 0.625rem;
-  color: #52525b; /* zinc-600 */
-  user-select: none;
+const Copyright = styled.footer`
+    text-align: center;
+    font-size: 0.7rem;
+    color: #bbbbd0; /* zinc-600 */
+    user-select: none;
+    flex-shrink: 0;
+    padding-bottom: 0.125rem;
 `;
 
 const StepButton = styled.button`
   background-color: #2563eb; /* blue-600 */
   color: white;
   font-weight: 900; /* font-black */
-  padding: 0.25rem 1.5rem; /* px-6 py-1 */
+  padding: 0.25rem 3rem;
   border-radius: 0.5rem;
   font-size: 1rem;
   border: none;
   border-bottom: 2px solid #1e40af; /* blue-800 */
-  width: 100%;
-  max-width: 28rem; /* max-w-md */
+  width: auto;
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
 
@@ -550,10 +549,10 @@ export default function Main() {
                 <StepButton onClick={step}>
                   STEP EXECUTE
                 </StepButton>
-                <Copyright>© {new Date().getFullYear()} AM Tech (Wataru Sakamoto)</Copyright>
               </FooterAction>
             </RightSection>
           </MainGrid>
+          <Copyright>© {new Date().getFullYear()} AM Tech (Wataru Sakamoto)</Copyright>
         </MainWrapper>
       </PageContainer>
     </GlobalStyle>
