@@ -48,12 +48,22 @@ const ContentGrid = styled.div`
 
 const FooterAction = styled.div`
   background-color: #18181b; /* zinc-900 */
-  padding: 0.25rem 0.375rem; /* px-1.5 py-1 -> py-1 is 0.25rem, wait tailwind py-1 is 4px=0.25rem, px-1.5 is 6px=0.375rem */
+  padding: 0.25rem 0.375rem;
   border-radius: 0.5rem;
   border: 1px solid #47474a; /* zinc-800 */
   display: flex;
+  align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  position: relative;
+`;
+
+const Copyright = styled.span`
+  position: absolute;
+  right: 0.75rem;
+  font-size: 0.625rem;
+  color: #52525b; /* zinc-600 */
+  user-select: none;
 `;
 
 const StepButton = styled.button`
@@ -540,6 +550,7 @@ export default function Main() {
                 <StepButton onClick={step}>
                   STEP EXECUTE
                 </StepButton>
+                <Copyright>© {new Date().getFullYear()} AM Tech (Wataru Sakamoto)</Copyright>
               </FooterAction>
             </RightSection>
           </MainGrid>
