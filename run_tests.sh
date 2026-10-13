@@ -32,7 +32,7 @@ printf "${BOLD}       Z80LAB Test Runner     ${RESET}\n"
 printf "${BOLD}==============================${RESET}\n"
 
 # --- JS / Vitest (assembler unit tests) ---
-run_suite "Vitest (assembler)" \
+run_suite "Vitest (assembler + compiler)" \
   bash -c "cd '$BACKEND' && npm test"
 
 # --- PHP / PHPUnit (Laravel backend) ---
