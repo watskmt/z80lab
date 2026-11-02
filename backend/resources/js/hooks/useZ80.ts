@@ -15,6 +15,7 @@ import {
 } from '../constants';
 import type {Registers} from '@/types';
 import {samplePrograms} from '../data/samples';
+import {daaAdjust, flagsAfterBitTest, incDec16Pair} from '../utils/z80CpuHelpers';
 
 export function useZ80() {
     // CPUの状態管理
@@ -208,9 +209,9 @@ export function useZ80() {
                     set8((r.B << 8) | r.C, r.A, CODE_BASE);
                     break; // LD (BC), A
                 case 0x03: {
-                    const v = ((r.B << 8) | r.C + 1) & 0xffff;
-                    r.B = v >> 8;
-                    r.C = v & 0xff;
+                    const p = incDec16Pair(r.B, r.C, 1);
+                    r.B = p.high;
+                    r.C = p.low;
                     break;
                 } // INC BC
                 case 0x04:
@@ -246,9 +247,9 @@ export function useZ80() {
                     r.A = get8((r.B << 8) | r.C);
                     break; // LD A, (BC)
                 case 0x0b: {
-                    const v = ((r.B << 8) | r.C - 1) & 0xffff;
-                    r.B = v >> 8;
-                    r.C = v & 0xff;
+                    const p = incDec16Pair(r.B, r.C, -1);
+                    r.B = p.high;
+                    r.C = p.low;
                     break;
                 } // DEC BC
                 case 0x0c:
@@ -277,9 +278,9 @@ export function useZ80() {
                     set8((r.D << 8) | r.E, r.A, CODE_BASE);
                     break; // LD (DE), A
                 case 0x13: {
-                    const v = ((r.D << 8) | r.E + 1) & 0xffff;
-                    r.D = v >> 8;
-                    r.E = v & 0xff;
+                    const p = incDec16Pair(r.D, r.E, 1);
+                    r.D = p.high;
+                    r.E = p.low;
                     break;
                 } // INC DE
                 case 0x14:
@@ -312,9 +313,9 @@ export function useZ80() {
                     r.A = get8((r.D << 8) | r.E);
                     break; // LD A, (DE)
                 case 0x1b: {
-                    const v = ((r.D << 8) | r.E - 1) & 0xffff;
-                    r.D = v >> 8;
-                    r.E = v & 0xff;
+                    const p = incDec16Pair(r.D, r.E, -1);
+                    r.D = p.high;
+                    r.E = p.low;
                     break;
                 } // DEC DE
                 case 0x1c:
@@ -344,9 +345,9 @@ export function useZ80() {
                     break;
                 } // LD (nn), HL
                 case 0x23: {
-                    const v = ((r.H << 8) | r.L + 1) & 0xffff;
-                    r.H = v >> 8;
-                    r.L = v & 0xff;
+                    const p = incDec16Pair(r.H, r.L, 1);
+                    r.H = p.high;
+                    r.L = p.low;
                     break;
                 } // INC HL
                 case 0x24:
@@ -382,9 +383,9 @@ export function useZ80() {
                     break;
                 } // LD HL, (nn)
                 case 0x2b: {
-                    const v = ((r.H << 8) | r.L - 1) & 0xffff;
-                    r.H = v >> 8;
-                    r.L = v & 0xff;
+                    const p = incDec16Pair(r.H, r.L, -1);
+                    r.H = p.high;
+                    r.L = p.low;
                     break;
                 } // DEC HL
                 case 0x2c:
@@ -465,6 +466,48 @@ export function useZ80() {
                 case 0x3e:
                     r.A = m[r.PC++];
                     break; // LD A, n
+                case 0x07: {
+                    const c = (r.A >> 7) & 1;
+                    r.A = ((r.A << 1) | c) & 0xff;
+                    r.F = (r.F & ~(H_FLAG | N_FLAG | C_FLAG)) | c;
+                    break;
+                } // RLCA
+                case 0x0f: {
+                    const c = r.A & 1;
+                    r.A = (r.A >> 1) | (c << 7);
+                    r.F = (r.F & ~(H_FLAG | N_FLAG | C_FLAG)) | c;
+                    break;
+                } // RRCA
+                case 0x17: {
+                    const c = r.F & C_FLAG;
+                    r.F = (r.F & ~(H_FLAG | N_FLAG | C_FLAG)) | ((r.A >> 7) & 1);
+                    r.A = ((r.A << 1) | c) & 0xff;
+                    break;
+                } // RLA
+                case 0x1f: {
+                    const c = r.F & C_FLAG;
+                    r.F = (r.F & ~(H_FLAG | N_FLAG | C_FLAG)) | (r.A & 1);
+                    r.A = (r.A >> 1) | (c << 7);
+                    break;
+                } // RRA
+                case 0x27: {
+                    const d = daaAdjust(r.A, r.F);
+                    r.A = d.a;
+                    r.F = d.f;
+                    break;
+                } // DAA
+                case 0x2f:
+                    r.A ^= 0xff;
+                    r.F = (r.F & ~(H_FLAG | N_FLAG)) | H_FLAG | N_FLAG;
+                    break; // CPL
+                case 0x37:
+                    r.F = (r.F & ~(H_FLAG | N_FLAG)) | C_FLAG;
+                    break; // SCF
+                case 0x3f: {
+                    const oldC = r.F & C_FLAG;
+                    r.F = (r.F & ~(N_FLAG | C_FLAG | H_FLAG)) | (oldC ? H_FLAG : 0) | (oldC ? 0 : C_FLAG);
+                    break;
+                } // CCF
                 case 0xc0:
                     if (!(r.F & Z_FLAG)) r.PC = pop();
                     break; // RET NZ
@@ -792,8 +835,7 @@ export function useZ80() {
                         default:
                             if ((cbOp >> 6) === 1) { // BIT
                                 const bit = (cbOp >> 3) & 7;
-                                r.F = (r.F & C_FLAG) | H_FLAG | (SZP_TABLE[val & (1 << bit)] & ~PV_FLAG);
-                                if (bit === 7 && (val & 0x80)) r.F |= S_FLAG;
+                                r.F = flagsAfterBitTest(val, bit, r.F);
                                 return;
                             } else if ((cbOp >> 6) === 2) {
                                 res = val & ~(1 << ((cbOp >> 3) & 7));
