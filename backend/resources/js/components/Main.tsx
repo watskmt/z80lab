@@ -346,7 +346,7 @@ export default function Main() {
       const s = instr.toUpperCase().trim();
       if (isDirective(s)) continue;
       // Substitute dummy address for unknown labels to get correct byte count
-      const resolved = instr.replace(/\b([A-Za-z_]\w*)\b/g, (m) => (m in labelMap ? labelMap[m].toString() : '0'));
+      const resolved = instr.replace(/\b([A-Za-z_]\w*)\b/g, (m) => (m in labelMap ? labelMap[m].toString() : m));
       const bytes = assembleInstruction(resolved, addr);
       addr += bytes.length > 0 ? bytes.length : 1;
     }
