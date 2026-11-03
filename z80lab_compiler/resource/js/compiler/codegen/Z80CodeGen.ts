@@ -40,7 +40,8 @@ export class Z80CodeGen {
 
   constructor(
     private sourceFile = 'input.c',
-    sourceCode = ''
+    sourceCode = '',
+    private origin = 0x0000,
   ) {
     this.sourceLines = sourceCode.split('\n');
   }
@@ -49,7 +50,8 @@ export class Z80CodeGen {
     this.emit('; c2z80 generated Z80 assembly');
     this.emit('; Source: ' + this.sourceFile);
     this.emit('');
-    this.emit('\tORG\t0x0000');
+    const orgHex = '0x' + (this.origin & 0xffff).toString(16).padStart(4, '0');
+    this.emit('\tORG\t' + orgHex);
     this.emit('');
 
     // グローバル変数収集
@@ -81,9 +83,7 @@ export class Z80CodeGen {
       this.emit('');
       this.emit('; Global variables');
       for (const v of globals) {
-        const size = AST.typeSize(v.varType);
-        if (size === 1) this.emit(`_${v.name}:\tDB\t0`);
-        else           this.emit(`_${v.name}:\tDW\t0`);
+        this.emitGlobalVar(v);
       }
     }
 
@@ -465,6 +465,8 @@ export class Z80CodeGen {
       this.emit('\tEX\tDE, HL');
       this.emit('\tPOP\tHL');
       this.emit('\tLD\t(DE), L');
+    } else if (target.kind === 'MemberExpr') {
+      this.storeToMember(target);
     }
   }
 
@@ -593,13 +595,26 @@ export class Z80CodeGen {
     if (expr.kind === 'Identifier') {
       const local = this.localVars.find(v => v.name === expr.name);
       if (local) {
-        this.emit(`\tLD\tHL, IY${local.offset >= 0 ? '+' : ''}${local.offset}`);
-        this.emit('\tPUSH\tIY'); this.emit('\tPOP\tDE');
-        this.emit(`\tLD\tHL, ${Math.abs(local.offset)}`);
-        if (local.offset < 0) { this.emit('\tOR\tA'); this.emit('\tEX\tDE, HL'); this.emit('\tSBC\tHL, DE'); this.emit('\tEX\tDE, HL'); this.emit('\tLD\tHL, 0'); this.emit('\tSBC\tHL, DE'); }
-        else { this.emit('\tADD\tHL, DE'); }
+        this.emit('\tPUSH\tIY');
+        this.emit('\tPOP\tHL');
+        if (local.offset > 0) {
+          this.emit(`\tLD\tDE, ${local.offset}`);
+          this.emit('\tADD\tHL, DE');
+        } else if (local.offset < 0) {
+          this.emit(`\tLD\tDE, ${-local.offset}`);
+          this.emit('\tOR\tA');
+          this.emit('\tSBC\tHL, DE');
+        }
       } else {
         this.emit(`\tLD\tHL, _${expr.name}`);
+      }
+    } else if (expr.kind === 'MemberExpr') {
+      const { offset } = this.memberInfo(expr);
+      if (expr.arrow) this.genExpr(expr.object);
+      else this.genAddr(expr.object);
+      if (offset !== 0) {
+        this.emit(`\tLD\tDE, ${offset}`);
+        this.emit('\tADD\tHL, DE');
       }
     }
   }
@@ -634,11 +649,101 @@ export class Z80CodeGen {
   }
 
   private genMember(expr: AST.MemberExpr) {
-    this.genExpr(expr.object);
-    // 構造体メンバーへのオフセット計算は簡略化
-    this.emit('\tLD\tA, (HL)');
-    this.emit('\tLD\tH, 0');
-    this.emit('\tLD\tL, A');
+    const { offset, fieldType } = this.memberInfo(expr);
+    if (!expr.arrow && expr.object.kind === 'Identifier') {
+      const local = this.localVars.find(v => v.name === expr.object.name);
+      if (local) {
+        this.loadFromLocal(
+          { ...local, offset: local.offset + offset, type: fieldType },
+          fieldType,
+        );
+        return;
+      }
+    }
+    if (expr.arrow) this.genExpr(expr.object);
+    else this.genAddr(expr.object);
+    if (offset !== 0) {
+      this.emit(`\tLD\tDE, ${offset}`);
+      this.emit('\tADD\tHL, DE');
+    }
+    this.loadFromPtr(fieldType);
+  }
+
+  private storeToMember(expr: AST.MemberExpr) {
+    const { offset, fieldType } = this.memberInfo(expr);
+    if (!expr.arrow && expr.object.kind === 'Identifier') {
+      const local = this.localVars.find(v => v.name === expr.object.name);
+      if (local) {
+        this.storeToLocal(
+          { ...local, offset: local.offset + offset, type: fieldType },
+          fieldType,
+        );
+        return;
+      }
+      this.emit('\tPUSH\tHL');
+      this.emit(`\tLD\tHL, _${expr.object.name}`);
+      if (offset !== 0) {
+        this.emit(`\tLD\tDE, ${offset}`);
+        this.emit('\tADD\tHL, DE');
+      }
+      this.emit('\tEX\tDE, HL');
+      this.emit('\tPOP\tHL');
+      this.storeHlToDe(fieldType);
+      return;
+    }
+    this.emit('\tPUSH\tHL');
+    if (expr.arrow) this.genExpr(expr.object);
+    else this.genAddr(expr.object);
+    if (offset !== 0) {
+      this.emit(`\tLD\tDE, ${offset}`);
+      this.emit('\tADD\tHL, DE');
+    }
+    this.emit('\tEX\tDE, HL');
+    this.emit('\tPOP\tHL');
+    this.storeHlToDe(fieldType);
+  }
+
+  private memberObjectType(expr: AST.MemberExpr): AST.CType {
+    let t = expr.object.type;
+    if (!t && expr.object.kind === 'Identifier') {
+      const local = this.localVars.find(v => v.name === expr.object.name);
+      if (local) t = local.type;
+      else {
+        const g = this.globalVars.find(v => v.name === expr.object.name);
+        if (g) t = g.type;
+      }
+    }
+    if (t && expr.arrow && t.kind === 'pointer') t = t.base;
+    return t ?? { kind: 'struct', name: '', fields: [] };
+  }
+
+  private memberInfo(expr: AST.MemberExpr): { offset: number; fieldType: AST.CType } {
+    const info = AST.structFieldOffset(this.memberObjectType(expr), expr.member);
+    if (info) return { offset: info.offset, fieldType: info.type };
+    return { offset: 0, fieldType: { kind: 'int', signed: true } };
+  }
+
+  private loadFromPtr(type: AST.CType) {
+    if (AST.typeSize(type) === 1) {
+      this.emit('\tLD\tA, (HL)');
+      this.emit('\tLD\tH, 0');
+      this.emit('\tLD\tL, A');
+    } else {
+      this.emit('\tLD\tA, (HL)');
+      this.emit('\tINC\tHL');
+      this.emit('\tLD\tH, (HL)');
+      this.emit('\tLD\tL, A');
+    }
+  }
+
+  private storeHlToDe(type: AST.CType) {
+    this.emit('\tLD\tA, L');
+    this.emit('\tLD\t(DE), A');
+    if (AST.typeSize(type) > 1) {
+      this.emit('\tINC\tDE');
+      this.emit('\tLD\tA, H');
+      this.emit('\tLD\t(DE), A');
+    }
   }
 
   private genTernary(expr: AST.TernaryExpr) {
@@ -675,6 +780,37 @@ export class Z80CodeGen {
     } else {
       this.emit(`\tLD\t(IY${local.offset >= 0 ? '+' : ''}${local.offset}), L`);
       this.emit(`\tLD\t(IY${local.offset >= 0 ? '+' : ''}${local.offset + 1}), H`);
+    }
+  }
+
+  private constInitValue(init?: AST.Expr): number {
+    if (!init) return 0;
+    if (init.kind === 'IntLiteral' || init.kind === 'CharLiteral') return init.value;
+    if (
+      init.kind === 'UnaryExpr' &&
+      init.prefix &&
+      init.op === '-' &&
+      init.operand.kind === 'IntLiteral'
+    ) {
+      return (-init.operand.value) & 0xffff;
+    }
+    return 0;
+  }
+
+  private emitGlobalVar(v: AST.VarDecl) {
+    const size = AST.typeSize(v.varType);
+    const initVal = this.constInitValue(v.init);
+    if (size <= 1) {
+      this.emit(`_${v.name}:\tDB\t${initVal & 0xff}`);
+    } else if (size === 2) {
+      this.emit(`_${v.name}:\tDW\t${initVal & 0xffff}`);
+    } else {
+      const bytes = Array.from({ length: Math.max(size, 1) }, () => 0);
+      if (size > 0 && initVal) {
+        bytes[0] = initVal & 0xff;
+        if (size > 1) bytes[1] = (initVal >> 8) & 0xff;
+      }
+      this.emit(`_${v.name}:\tDB\t${bytes.join(', ')}`);
     }
   }
 

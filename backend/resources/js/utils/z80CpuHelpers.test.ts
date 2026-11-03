@@ -23,12 +23,19 @@ describe('incDec16Pair', () => {
 });
 
 describe('flagsAfterBitTest', () => {
-  it('BIT 0 on 80H sets S from operand bit 7', () => {
+  it('BIT 0 on 80H does not set S (n is not 7)', () => {
     const f = flagsAfterBitTest(0x80, 0, C_FLAG);
-    expect(f & S_FLAG).toBe(S_FLAG);
+    expect(f & S_FLAG).toBe(0);
     expect(f & Z_FLAG).toBe(Z_FLAG);
     expect(f & H_FLAG).toBe(H_FLAG);
     expect(f & C_FLAG).toBe(C_FLAG);
+  });
+
+  it('BIT 7 on 80H sets S and clears Z', () => {
+    const f = flagsAfterBitTest(0x80, 7, 0);
+    expect(f & S_FLAG).toBe(S_FLAG);
+    expect(f & Z_FLAG).toBe(0);
+    expect(f & H_FLAG).toBe(H_FLAG);
   });
 
   it('BIT 7 on 7FH clears S while Z reflects tested bit', () => {
@@ -37,9 +44,9 @@ describe('flagsAfterBitTest', () => {
     expect(f & Z_FLAG).toBe(Z_FLAG);
   });
 
-  it('BIT 3 on FFH clears Z and sets S', () => {
+  it('BIT 3 on FFH clears Z and does not set S', () => {
     const f = flagsAfterBitTest(0xff, 3, N_FLAG);
-    expect(f & S_FLAG).toBe(S_FLAG);
+    expect(f & S_FLAG).toBe(0);
     expect(f & Z_FLAG).toBe(0);
     expect(f & N_FLAG).toBe(0);
   });

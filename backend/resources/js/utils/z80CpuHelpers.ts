@@ -6,11 +6,12 @@ export function incDec16Pair(high: number, low: number, delta: 1 | -1): { high: 
   return { high: v >> 8, low: v & 0xff };
 }
 
-/** F register after BIT b, r (CB prefix); C is preserved, operand is unchanged. */
+/** F register after BIT b, r (CB prefix); C is preserved, operand is unchanged.
+ *  S is set only when testing bit 7 and that bit is 1 (Z80 undocumented flags). */
 export function flagsAfterBitTest(val: number, bit: number, prevF: number): number {
   const tested = val & (1 << bit);
   let f = (prevF & C_FLAG) | H_FLAG | (SZP_TABLE[tested] & ~(PV_FLAG | S_FLAG));
-  if (val & 0x80) f |= S_FLAG;
+  if (bit === 7 && (val & 0x80)) f |= S_FLAG;
   return f;
 }
 

@@ -1,5 +1,42 @@
 import { REGS_MAP, REGS_LIST, hex4, hex2, MEM_SIZE } from '../constants';
 
+/** Mnemonics, registers, and conditions that must not be dummy-substituted in pass 1. */
+export const ASM_RESERVED_WORDS = new Set([
+  'NOP', 'HALT', 'RET', 'EX', 'DI', 'EI', 'RLCA', 'RRCA', 'RLA', 'RRA',
+  'DAA', 'CPL', 'SCF', 'CCF', 'EXX', 'NEG', 'RETN', 'RETI', 'RRD', 'RLD',
+  'LDIR', 'LDDR', 'CPIR', 'CPDR', 'INIR', 'INDR', 'OTIR', 'OTDR',
+  'LD', 'INC', 'DEC', 'ADD', 'ADC', 'SUB', 'SBC', 'AND', 'XOR', 'OR', 'CP',
+  'JP', 'CALL', 'JR', 'DJNZ', 'RST', 'PUSH', 'POP',
+  'BIT', 'RES', 'SET', 'OUT', 'IN', 'IM',
+  'RLC', 'RRC', 'RL', 'RR', 'SLA', 'SRA', 'SRL', 'SLL',
+  'ORG', 'END', 'DB', 'DW', 'DS', 'EQU',
+  'A', 'F', 'B', 'C', 'D', 'E', 'H', 'L', 'I', 'R',
+  'AF', 'BC', 'DE', 'HL', 'SP', 'IX', 'IY', 'PC',
+  'IXH', 'IXL', 'IYH', 'IYL',
+  'NZ', 'Z', 'NC', 'PO', 'PE', 'P', 'M',
+]);
+
+/**
+ * Replace known labels with numeric addresses.
+ * Unknown identifiers that are not mnemonics/registers become dummy `0` when
+ * `unknown === 'dummy'` so pass 1 can size JP/CALL/JR without the +1 fallback.
+ */
+export function resolveAsmIdentifiers(
+  instr: string,
+  labelMap: Record<string, number>,
+  unknown: 'keep' | 'dummy' = 'keep',
+): string {
+  return instr.replace(/\b([A-Za-z_]\w*)\b/g, (m) => {
+    if (Object.prototype.hasOwnProperty.call(labelMap, m)) {
+      return String(labelMap[m]);
+    }
+    if (ASM_RESERVED_WORDS.has(m.toUpperCase())) {
+      return m;
+    }
+    return unknown === 'dummy' ? '0' : m;
+  });
+}
+
 // ===== アセンブラ =====
 export const assembleInstruction = (text: string, currentAddr: number): number[] => {
   const lineWithoutComment = text.split(';')[0];
