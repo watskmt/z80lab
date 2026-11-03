@@ -245,6 +245,7 @@ export default function Main() {
   const {
     codeMemory, setCodeMemory,
     dataMemory,
+    setDataMemory,
     prevDataMemory,
     ioOut,
     ioIn, setIoIn,
@@ -325,40 +326,135 @@ export default function Main() {
   const loadAsmText = (text: string) => {
     const rawLines = text.split('\n');
 
-    const isDirective = (s: string) =>
-      !s || s === '-' || s.startsWith('DB') || s.startsWith('DW') || s.startsWith('ORG') || s.startsWith('END');
-
-    // Strip label prefix from a line, returning [labelOrNull, instrLine]
     const stripLabel = (line: string): [string | null, string] => {
       const m = line.match(/^([A-Za-z_]\w*):\s*(.*)/);
       return m ? [m[1], m[2].trim()] : [null, line.trim()];
     };
 
-    // Pass 1: collect label → address
+    const parseNumeric = (tok: string): number | null => {
+      const t = tok.trim();
+      if (!t) return null;
+      if (/^0x[0-9a-f]+$/i.test(t)) return parseInt(t.slice(2), 16);
+      if (/^[0-9a-f]+H$/i.test(t)) return parseInt(t.slice(0, -1), 16);
+      const n = parseInt(t, 10);
+      return Number.isNaN(n) ? null : n;
+    };
+
+    const tokenizeDataOperands = (rest: string): string[] => {
+      const tokens: string[] = [];
+      let i = 0;
+      while (i < rest.length) {
+        while (i < rest.length && /[\s,]/.test(rest[i])) i++;
+        if (i >= rest.length) break;
+        if (rest[i] === '"') {
+          let j = i + 1;
+          while (j < rest.length && rest[j] !== '"') j++;
+          tokens.push(rest.slice(i, j + 1));
+          i = j + 1;
+          continue;
+        }
+        let j = i;
+        while (j < rest.length && rest[j] !== ',') j++;
+        tokens.push(rest.slice(i, j).trim());
+        i = j + 1;
+      }
+      return tokens.filter(Boolean);
+    };
+
+    const encodeDb = (instr: string): number[] | null => {
+      const m = instr.match(/^DB\s+(.*)$/i);
+      if (!m) return null;
+      const bytes: number[] = [];
+      for (const tok of tokenizeDataOperands(m[1])) {
+        if (tok.startsWith('"')) {
+          const inner = tok.slice(1, -1);
+          for (let k = 0; k < inner.length; k++) bytes.push(inner.charCodeAt(k) & 0xff);
+        } else {
+          const n = parseNumeric(tok);
+          if (n === null) return null;
+          bytes.push(n & 0xff);
+        }
+      }
+      return bytes;
+    };
+
+    const encodeDw = (instr: string): number[] | null => {
+      const m = instr.match(/^DW\s+(.*)$/i);
+      if (!m) return null;
+      const bytes: number[] = [];
+      for (const tok of tokenizeDataOperands(m[1])) {
+        const n = parseNumeric(tok);
+        if (n === null) return null;
+        bytes.push(n & 0xff, (n >> 8) & 0xff);
+      }
+      return bytes;
+    };
+
+    const parseOrg = (instr: string): number | null => {
+      const m = instr.match(/^ORG\s+(.+)$/i);
+      if (!m) return null;
+      return parseNumeric(m[1].trim());
+    };
+
+    const isDataLine = (s: string) => s.startsWith('DB') || s.startsWith('DW');
+    const isOrgLine = (s: string) => s.startsWith('ORG');
+    const isEndLine = (s: string) => s.startsWith('END');
+
+    const assignLabel = (
+      label: string | null,
+      addr: number,
+      map: Record<string, number>,
+    ) => {
+      if (label !== null) map[label] = addr;
+    };
+
+    // Pass 1: label → code or data address
     const labelMap: Record<string, number> = {};
-    let addr = CODE_BASE;
+    let codeAddr = CODE_BASE;
+    let dataAddr = DATA_BASE;
+
     for (const rawLine of rawLines) {
       const stripped = rawLine.split(';')[0].trim();
       if (!stripped) continue;
       const [label, instr] = stripLabel(stripped);
-      if (label !== null) labelMap[label] = addr;
+      const s = (instr || '').toUpperCase().trim();
+
+      if (isOrgLine(s)) {
+        const org = parseOrg(instr);
+        if (org !== null) {
+          if (org >= DATA_BASE) dataAddr = org;
+          else codeAddr = org;
+        }
+        assignLabel(label, org !== null && org >= DATA_BASE ? dataAddr : codeAddr, labelMap);
+        continue;
+      }
+      if (isEndLine(s)) continue;
+
+      if (isDataLine(s)) {
+        assignLabel(label, dataAddr, labelMap);
+        const bytes = s.startsWith('DB') ? encodeDb(instr) : encodeDw(instr);
+        if (bytes) dataAddr += bytes.length;
+        continue;
+      }
+
+      assignLabel(label, codeAddr, labelMap);
       if (!instr) continue;
-      const s = instr.toUpperCase().trim();
-      if (isDirective(s)) continue;
-      // Substitute dummy address for unknown labels to get correct byte count
+
       const resolved = instr.replace(/\b([A-Za-z_]\w*)\b/g, (m) => (m in labelMap ? labelMap[m].toString() : m));
-      const bytes = assembleInstruction(resolved, addr);
-      addr += bytes.length > 0 ? bytes.length : 1;
+      const bytes = assembleInstruction(resolved, codeAddr);
+      codeAddr += bytes.length > 0 ? bytes.length : 1;
     }
 
-    // Pass 2: assemble with full label resolution
-    const newMem = new Uint8Array(MEM_SIZE);
-    let currentAddr = CODE_BASE;
+    // Pass 2: emit code → codeMemory, DB/DW → dataMemory
+    const newCodeMem = new Uint8Array(MEM_SIZE);
+    const newDataMem = new Uint8Array(MEM_SIZE);
+    let currentCodeAddr = CODE_BASE;
+    let currentDataAddr = DATA_BASE;
     const errorLines: string[] = [];
     const newAddrToCSrc: Record<number, string> = {};
     let pendingCSrc: string | null = null;
+
     rawLines.forEach((rawLine, idx) => {
-      // Detect C source annotation emitted by Z80CodeGen: "; N: source line"
       const cSrcMatch = rawLine.match(/^\s*;\s*\d+:\s*(.+)$/);
       if (cSrcMatch) {
         pendingCSrc = cSrcMatch[1].trim();
@@ -367,26 +463,50 @@ export default function Main() {
       const stripped = rawLine.split(';')[0].trim();
       if (!stripped) return;
       const [label, instr] = stripLabel(stripped);
+      const s = (instr || '').toUpperCase().trim();
+
+      if (isOrgLine(s)) {
+        const org = parseOrg(instr);
+        if (org !== null) {
+          if (org >= DATA_BASE) currentDataAddr = org;
+          else currentCodeAddr = org;
+        }
+        return;
+      }
+      if (isEndLine(s)) return;
+
+      if (isDataLine(s)) {
+        const bytes = s.startsWith('DB') ? encodeDb(instr) : encodeDw(instr);
+        if (!bytes || bytes.length === 0) {
+          errorLines.push(`Line ${idx + 1}: ${rawLine.trim()}`);
+          return;
+        }
+        bytes.forEach((b) => {
+          if (currentDataAddr < MEM_SIZE) newDataMem[currentDataAddr++] = b;
+        });
+        return;
+      }
+
       if (pendingCSrc !== null && (label !== null || instr)) {
-        newAddrToCSrc[currentAddr] = pendingCSrc;
+        newAddrToCSrc[currentCodeAddr] = pendingCSrc;
         pendingCSrc = null;
       }
       if (!instr) return;
-      const s = instr.toUpperCase().trim();
-      if (isDirective(s)) return;
+
       const resolved = instr.replace(/\b([A-Za-z_]\w*)\b/g, (m) => (m in labelMap ? labelMap[m].toString() : m));
-      const bytes = assembleInstruction(resolved, currentAddr);
+      const bytes = assembleInstruction(resolved, currentCodeAddr);
       if (bytes.length > 0) {
-        bytes.forEach((b) => { if (currentAddr < MEM_SIZE) newMem[currentAddr++] = b; });
+        bytes.forEach((b) => { if (currentCodeAddr < MEM_SIZE) newCodeMem[currentCodeAddr++] = b; });
       } else {
         console.warn('Failed to assemble instruction:', rawLine);
         errorLines.push(`Line ${idx + 1}: ${rawLine.trim()}`);
       }
     });
 
-    setCodeMemory(newMem);
-    setAddrToCSrc(newAddrToCSrc);
     resetState();
+    setCodeMemory(newCodeMem);
+    setDataMemory(newDataMem);
+    setAddrToCSrc(newAddrToCSrc);
     if (errorLines.length > 0) {
       alert(`Failed to assemble ${errorLines.length} instruction(s):\n\n${errorLines.join('\n')}`);
     }

@@ -432,6 +432,19 @@ describe('assembleInstruction', () => {
     });
   });
 
+  describe('c2z80 memory and shifts', () => {
+    it.each<[string, number[]]>([
+      ['SRL H',              [0xcb, 0x3c]],
+      ['RR L',               [0xcb, 0x1d]],
+      ['LD HL,(4000H)',      [0x2a, 0x00, 0x40]],
+      ['LD (4000H),HL',      [0x22, 0x00, 0x40]],
+      ['LD HL, (16384)',     [0x2a, 0x00, 0x40]],
+      ['LD (16384), HL',     [0x22, 0x00, 0x40]],
+    ])('assembles %s', (mnem, expected) => {
+      expect(assembleInstruction(mnem, 0)).toEqual(expected);
+    });
+  });
+
   describe('Directives and comments', () => {
     it.each<[string, number[]]>([
       ['DB 01H',  []],

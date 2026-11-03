@@ -409,6 +409,37 @@ export const assembleInstruction = (text: string, currentAddr: number): number[]
     return [0xed, opcodes[idx]];
   }
 
+  // CB shifts on registers (c2z80 >> and general use)
+  const cbShiftMatch = compact.match(/^(RLC|RRC|RL|RR|SLA|SRA|SRL)([A-EHL]|B|C|D|E|H|L|A)$/);
+  if (cbShiftMatch) {
+    const bases: Record<string, number> = {
+      RLC: 0x00, RRC: 0x08, RL: 0x10, RR: 0x18, SLA: 0x20, SRA: 0x28, SRL: 0x38,
+    };
+    const base = bases[cbShiftMatch[1]];
+    const r = REGS_MAP[cbShiftMatch[2]];
+    if (base !== undefined && r !== undefined) {
+      return [0xcb, base | r];
+    }
+  }
+
+  // LD HL,(nn) / LD (nn),HL — absolute 16-bit memory (globals)
+  const ldHLMemMatch = compact.match(/^LDHL,\(([0-9A-F]+H?|[0-9]+)\)$/);
+  if (ldHLMemMatch) {
+    const valStr = ldHLMemMatch[1];
+    const nn = valStr.endsWith('H') ? parseInt(valStr.slice(0, -1), 16) : parseInt(valStr, 10);
+    if (!isNaN(nn)) {
+      return [0x2a, nn & 0xff, (nn >> 8) & 0xff];
+    }
+  }
+  const ldMemHLMatch = compact.match(/^LD\(([0-9A-F]+H?|[0-9]+)\),HL$/);
+  if (ldMemHLMatch) {
+    const valStr = ldMemHLMatch[1];
+    const nn = valStr.endsWith('H') ? parseInt(valStr.slice(0, -1), 16) : parseInt(valStr, 10);
+    if (!isNaN(nn)) {
+      return [0x22, nn & 0xff, (nn >> 8) & 0xff];
+    }
+  }
+
   return [];
 };
 

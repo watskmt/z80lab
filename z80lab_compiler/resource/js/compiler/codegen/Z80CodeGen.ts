@@ -87,10 +87,71 @@ export class Z80CodeGen {
       }
     }
 
+    this.emitRuntime();
+
     return {
       assembly: this.lines.join('\n'),
       sourceMap: { sources: [this.sourceFile], mappings: this.mappings },
     };
+  }
+
+  /** 16-bit multiply/divide/mod (HL=left, DE=right; result in HL) */
+  private emitRuntime() {
+    this.emit('');
+    this.emit('; Runtime (16-bit unsigned HL op DE)');
+    this.emit('__mul16:');
+    this.emit('\tLD\tB, H');
+    this.emit('\tLD\tC, L');
+    this.emit('\tLD\tHL, 0');
+    this.emit('\tLD\tA, 16');
+    this.emit('__mul16_loop:');
+    this.emit('\tADD\tHL, HL');
+    this.emit('\tRL\tC');
+    this.emit('\tRL\tB');
+    this.emit('\tJR\tNC, __mul16_skip');
+    this.emit('\tADD\tHL, DE');
+    this.emit('__mul16_skip:');
+    this.emit('\tDEC\tA');
+    this.emit('\tJR\tNZ, __mul16_loop');
+    this.emit('\tRET');
+    this.emit('');
+    this.emit('__div16:');
+    this.emit('\tLD\tA, D');
+    this.emit('\tOR\tE');
+    this.emit('\tJR\tNZ, __div16_start');
+    this.emit('\tLD\tHL, 0');
+    this.emit('\tRET');
+    this.emit('__div16_start:');
+    this.emit('\tLD\tBC, 0');
+    this.emit('__div16_loop:');
+    this.emit('\tOR\tA');
+    this.emit('\tSBC\tHL, DE');
+    this.emit('\tJP\tC, __div16_done');
+    this.emit('\tINC\tBC');
+    this.emit('\tJR\t__div16_loop');
+    this.emit('__div16_done:');
+    this.emit('\tADD\tHL, DE');
+    this.emit('\tLD\tH, B');
+    this.emit('\tLD\tL, C');
+    this.emit('\tRET');
+    this.emit('');
+    this.emit('__mod16:');
+    this.emit('\tLD\tA, D');
+    this.emit('\tOR\tE');
+    this.emit('\tJR\tNZ, __mod16_start');
+    this.emit('\tLD\tHL, 0');
+    this.emit('\tRET');
+    this.emit('__mod16_start:');
+    this.emit('\tLD\tBC, 0');
+    this.emit('__mod16_loop:');
+    this.emit('\tOR\tA');
+    this.emit('\tSBC\tHL, DE');
+    this.emit('\tJP\tC, __mod16_done');
+    this.emit('\tINC\tBC');
+    this.emit('\tJR\t__mod16_loop');
+    this.emit('__mod16_done:');
+    this.emit('\tADD\tHL, DE');
+    this.emit('\tRET');
   }
 
   // --- 関数生成 ---
