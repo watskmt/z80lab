@@ -43,14 +43,18 @@ export class SemanticAnalyzer {
     // 第1パス: 関数・グローバルの登録
     for (const node of program.body) {
       if (node.kind === 'StructDecl') {
+        node.fields = node.fields.map(f => ({ ...f, type: this.resolveType(f.type) }));
         this.structs.set(node.name, node.fields);
       } else if (node.kind === 'FunctionDecl') {
+        node.returnType = this.resolveType(node.returnType);
+        for (const p of node.params) p.paramType = this.resolveType(p.paramType);
         this.functions.set(node.name, {
           name: node.name,
           returnType: node.returnType,
           params: node.params.map(p => ({ name: p.name, type: p.paramType })),
         });
       } else if (node.kind === 'VarDecl') {
+        node.varType = this.resolveType(node.varType);
         this.scope.define({ name: node.name, type: node.varType, isGlobal: true });
       }
     }
@@ -95,6 +99,7 @@ export class SemanticAnalyzer {
     switch (stmt.kind) {
       case 'BlockStmt': this.analyzeBlock(stmt); break;
       case 'VarDecl': {
+        stmt.varType = this.resolveType(stmt.varType);
         if (stmt.init) {
           const initType = this.analyzeExpr(stmt.init);
           if (!this.isCompatible(stmt.varType, initType)) {
@@ -160,7 +165,7 @@ export class SemanticAnalyzer {
         if (!sym) {
           this.error(`Undefined identifier '${expr.name}'`, expr.line, expr.col);
           t = { kind: 'int', signed: true };
-        } else { t = sym.type; }
+        } else { t = this.resolveType(sym.type); }
         break;
       }
 
@@ -221,14 +226,15 @@ export class SemanticAnalyzer {
       }
 
       case 'MemberExpr': {
-        const ot = this.analyzeExpr(expr.object);
+        const ot = this.resolveType(this.analyzeExpr(expr.object));
+        expr.object.type = ot;
         const sType = expr.arrow
-          ? (ot.kind === 'pointer' ? ot.base : ot)
+          ? (ot.kind === 'pointer' ? this.resolveType(ot.base) : ot)
           : ot;
         if (sType.kind === 'struct') {
-          const fields = this.structs.get(sType.name);
+          const fields = sType.fields ?? this.structs.get(sType.name);
           const field = fields?.find(f => f.name === expr.member);
-          t = field?.type ?? { kind: 'int', signed: true };
+          t = field ? this.resolveType(field.type) : { kind: 'int', signed: true };
         } else { t = { kind: 'int', signed: true }; }
         break;
       }
@@ -250,6 +256,30 @@ export class SemanticAnalyzer {
       default: t = { kind: 'int', signed: true };
     }
     expr.type = t;
+    return t;
+  }
+
+  /** Attach struct field lists so typeSize / codegen see member offsets. */
+  private resolveType(t: AST.CType, seen = new Set<string>()): AST.CType {
+    if (t.kind === 'pointer') {
+      return { kind: 'pointer', base: this.resolveType(t.base, seen) };
+    }
+    if (t.kind === 'array') {
+      return { kind: 'array', base: this.resolveType(t.base, seen), size: t.size };
+    }
+    if (t.kind === 'struct') {
+      if (seen.has(t.name)) {
+        return t.fields ? t : { kind: 'struct', name: t.name, fields: this.structs.get(t.name) };
+      }
+      const fields = (t.fields && t.fields.length > 0) ? t.fields : this.structs.get(t.name);
+      if (!fields) return t;
+      seen.add(t.name);
+      return {
+        kind: 'struct',
+        name: t.name,
+        fields: fields.map(f => ({ name: f.name, type: this.resolveType(f.type, seen) })),
+      };
+    }
     return t;
   }
 

@@ -836,7 +836,7 @@ export function useZ80() {
                             if ((cbOp >> 6) === 1) { // BIT
                                 const bit = (cbOp >> 3) & 7;
                                 r.F = flagsAfterBitTest(val, bit, r.F);
-                                return;
+                                // Operand is unchanged; skip setReg but fall through to setRegs.
                             } else if ((cbOp >> 6) === 2) {
                                 res = val & ~(1 << ((cbOp >> 3) & 7));
                             } // RES
@@ -844,7 +844,7 @@ export function useZ80() {
                                 res = val | (1 << ((cbOp >> 3) & 7));
                             } // SET
                     }
-                    setReg(cbOp & 7, res);
+                    if ((cbOp >> 6) !== 1) setReg(cbOp & 7, res);
                     break;
                 }
                 case 0xdb: {

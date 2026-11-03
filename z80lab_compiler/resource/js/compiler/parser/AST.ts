@@ -24,6 +24,19 @@ export function typeSize(t: CType): number {
   }
 }
 
+/** Byte offset of a struct member, following a pointer type if present. */
+export function structFieldOffset(t: CType, member: string): { offset: number; type: CType } | null {
+  let ty: CType = t;
+  if (ty.kind === 'pointer') ty = ty.base;
+  if (ty.kind !== 'struct' || !ty.fields) return null;
+  let offset = 0;
+  for (const f of ty.fields) {
+    if (f.name === member) return { offset, type: f.type };
+    offset += typeSize(f.type);
+  }
+  return null;
+}
+
 export function typeName(t: CType): string {
   switch (t.kind) {
     case 'void':    return 'void';

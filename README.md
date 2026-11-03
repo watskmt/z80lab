@@ -49,7 +49,7 @@ docker-compose exec backend php artisan migrate
 ### VS Code
 VS Code を使用してフロントエンドとバックエンドをデバッグするための設定が含まれています。
 
-1. **フロントエンドの起動**: `npm run dev` で開発サーバーを起動します (http://localhost:5173)。
+1. **フロントエンドの起動**: `cd backend && npm run dev` で開発サーバーを起動します (http://localhost:5173)。
 2. **バックエンドの起動**: `docker-compose up -d` でバックエンドを起動します (http://localhost:8000)。
 3. **デバッグの開始**: VS Code の「実行とデバッグ」パネルから「Launch Chrome against localhost」を選択してデバッグを開始します。
 
@@ -61,10 +61,16 @@ IntelliJ IDEA 用の実行構成（Run Configurations）が `.run` ディレク�
 3. **Debug Frontend (Chrome)**: フロントエンドの開発サーバーを起動し、ブラウザデバッガをアタッチします。
 
 ## フロントエンドの起動
-フロントエンドはローカルの Node.js 環境で起動します。
+フロントエンドはローカルの Node.js 環境で起動します。`package.json` は `backend/` にあります。
 ```bash
+cd backend
 npm install
 npm run dev
+```
+テスト:
+```bash
+cd backend
+npm test
 ```
 
 Currently, two official plugins are available:

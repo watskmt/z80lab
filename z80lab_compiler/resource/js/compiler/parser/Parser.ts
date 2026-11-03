@@ -11,6 +11,7 @@ export class ParseError extends Error {
 
 export class Parser {
   private pos = 0;
+  private structs = new Map<string, AST.StructField[]>();
 
   constructor(private tokens: Token[]) {}
 
@@ -76,6 +77,7 @@ export class Parser {
     }
     this.expect(TokenType.RBRACE);
     this.expect(TokenType.SEMICOLON);
+    this.structs.set(name, fields);
     return { kind: 'StructDecl', name, fields, line: tok.line, col: tok.col };
   }
 
@@ -122,7 +124,8 @@ export class Parser {
     else if (this.check(TokenType.KW_STRUCT)) {
       this.advance();
       const name = this.expect(TokenType.IDENTIFIER).value;
-      base = { kind: 'struct', name };
+      const fields = this.structs.get(name);
+      base = fields ? { kind: 'struct', name, fields } : { kind: 'struct', name };
     } else {
       // unsigned だけなら unsigned int
       if (!signed) base = { kind: 'int', signed: false };
