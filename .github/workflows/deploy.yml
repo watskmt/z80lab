@@ -57,6 +57,8 @@ jobs:
   build-and-deploy:
     needs: test
     runs-on: ubuntu-latest
+    env:
+      VPS_DEPLOY_ROOT: /var/www/z80lab.com
     environment:
       name: production-vps
       url: https://z80lab.com
@@ -120,6 +122,12 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
 
+      - name: Ensure VPS deploy directories exist
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
+            "mkdir -p ${VPS_DEPLOY_ROOT}/laravel ${VPS_DEPLOY_ROOT}/public_html"
+
       # 7. rsyncでLaravel本体をデプロイ
       - name: Deploy Laravel to VPS
         run: |
@@ -133,7 +141,7 @@ jobs:
             --exclude='database/database.sqlite' \
             -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
             ./backend/ \
-            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/z80lab.watarusakamoto.com/laravel/
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${VPS_DEPLOY_ROOT}/laravel/
 
       # 8. public_htmlにフロントエンドをデプロイ
       - name: Deploy Public to VPS
@@ -141,15 +149,15 @@ jobs:
           rsync -avz --delete \
             -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
             ./backend/public/ \
-            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/var/www/z80lab.watarusakamoto.com/public_html/
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:${VPS_DEPLOY_ROOT}/public_html/
 
       # 9. サーバー側でLaravelセットアップ
       - name: Run Laravel Setup on VPS
         run: |
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no \
-            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << EOF
             set -e
-            cd /var/www/z80lab.watarusakamoto.com/laravel
+            cd ${VPS_DEPLOY_ROOT}/laravel
 
             # storageディレクトリの作成（存在しない場合のみ）
             mkdir -p storage/framework/views storage/framework/sessions storage/framework/cache storage/logs bootstrap/cache

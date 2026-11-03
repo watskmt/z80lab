@@ -110,6 +110,10 @@ jobs:
 
       # 7. FTP デプロイ
       - name: FTP Deploy
+        env:
+          CORESERVER_USER: ${{ secrets.CORESERVER_USER }}
+          CORESERVER_PASS: ${{ secrets.CORESERVER_PASS }}
+          CORESERVER_HOST: ${{ secrets.CORESERVER_HOST }}
         run: |
           # サーバー側の public_html/index.php を修正して、正しいパスで laravel/ を読み込むようにする
           # 元の require __DIR__.'/../vendor/autoload.php'; を ../laravel/vendor/autoload.php に書き換え
@@ -132,9 +136,12 @@ jobs:
           mkdir -p temp_db
           touch temp_db/database.sqlite
 
+          export LFTP_PASSWORD="${CORESERVER_PASS}"
           lftp <<EOF
           set ftp:ssl-allow yes;
-          open -u ${{ secrets.CORESERVER_USER }},${{ secrets.CORESERVER_PASS }} ${{ secrets.CORESERVER_HOST }};
+          set ssl:verify-certificate no;
+          set ftp:passive-mode true;
+          open -u "${CORESERVER_USER}" "${CORESERVER_HOST}";
           
           # Backend 本体を domains/z80lab.com/laravel にデプロイ (DBファイルは除外)
           mirror -R ./backend/ domains/z80lab.com/laravel --delete --parallel=10 \
@@ -160,10 +167,10 @@ jobs:
           # storage ディレクトリの構造を確保 (中のファイルは同期しないがディレクトリは作成)
           # 注意: lftp の mirror はデフォルトでディレクトリを作成する
           # ここでは最小限の構造を同期
-          mkdir -p domains/z80lab.com/laravel/storage/framework/sessions || true
-          mkdir -p domains/z80lab.com/laravel/storage/framework/views || true
-          mkdir -p domains/z80lab.com/laravel/storage/framework/cache || true
-          mkdir -p domains/z80lab.com/laravel/storage/logs || true
+          mkdir -p -f domains/z80lab.com/laravel/storage/framework/sessions
+          mkdir -p -f domains/z80lab.com/laravel/storage/framework/views
+          mkdir -p -f domains/z80lab.com/laravel/storage/framework/cache
+          mkdir -p -f domains/z80lab.com/laravel/storage/logs
 
           # public ディレクトリの中身を domains/z80lab.com/public_html にデプロイ
           mirror -R ./backend/public/ domains/z80lab.com/public_html --delete --parallel=10;
