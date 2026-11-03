@@ -58,7 +58,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     env:
-      VPS_DEPLOY_ROOT: /var/www/z80lab.com
+      VPS_DEPLOY_ROOT: /var/www/z80lab.amtech-service.com
     environment:
       name: production-vps
       url: https://z80lab.com
