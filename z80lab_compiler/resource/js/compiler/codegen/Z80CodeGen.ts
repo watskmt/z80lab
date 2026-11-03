@@ -650,8 +650,9 @@ export class Z80CodeGen {
 
   private genMember(expr: AST.MemberExpr) {
     const { offset, fieldType } = this.memberInfo(expr);
-    if (!expr.arrow && expr.object.kind === 'Identifier') {
-      const local = this.localVars.find(v => v.name === expr.object.name);
+    const object = expr.object;
+    if (!expr.arrow && object.kind === 'Identifier') {
+      const local = this.localVars.find(v => v.name === object.name);
       if (local) {
         this.loadFromLocal(
           { ...local, offset: local.offset + offset, type: fieldType },
@@ -660,8 +661,8 @@ export class Z80CodeGen {
         return;
       }
     }
-    if (expr.arrow) this.genExpr(expr.object);
-    else this.genAddr(expr.object);
+    if (expr.arrow) this.genExpr(object);
+    else this.genAddr(object);
     if (offset !== 0) {
       this.emit(`\tLD\tDE, ${offset}`);
       this.emit('\tADD\tHL, DE');
@@ -671,8 +672,9 @@ export class Z80CodeGen {
 
   private storeToMember(expr: AST.MemberExpr) {
     const { offset, fieldType } = this.memberInfo(expr);
-    if (!expr.arrow && expr.object.kind === 'Identifier') {
-      const local = this.localVars.find(v => v.name === expr.object.name);
+    const object = expr.object;
+    if (!expr.arrow && object.kind === 'Identifier') {
+      const local = this.localVars.find(v => v.name === object.name);
       if (local) {
         this.storeToLocal(
           { ...local, offset: local.offset + offset, type: fieldType },
@@ -681,7 +683,7 @@ export class Z80CodeGen {
         return;
       }
       this.emit('\tPUSH\tHL');
-      this.emit(`\tLD\tHL, _${expr.object.name}`);
+      this.emit(`\tLD\tHL, _${object.name}`);
       if (offset !== 0) {
         this.emit(`\tLD\tDE, ${offset}`);
         this.emit('\tADD\tHL, DE');
@@ -692,8 +694,8 @@ export class Z80CodeGen {
       return;
     }
     this.emit('\tPUSH\tHL');
-    if (expr.arrow) this.genExpr(expr.object);
-    else this.genAddr(expr.object);
+    if (expr.arrow) this.genExpr(object);
+    else this.genAddr(object);
     if (offset !== 0) {
       this.emit(`\tLD\tDE, ${offset}`);
       this.emit('\tADD\tHL, DE');
@@ -704,12 +706,13 @@ export class Z80CodeGen {
   }
 
   private memberObjectType(expr: AST.MemberExpr): AST.CType {
-    let t = expr.object.type;
-    if (!t && expr.object.kind === 'Identifier') {
-      const local = this.localVars.find(v => v.name === expr.object.name);
+    const object = expr.object;
+    let t = object.type;
+    if (!t && object.kind === 'Identifier') {
+      const local = this.localVars.find(v => v.name === object.name);
       if (local) t = local.type;
       else {
-        const g = this.globalVars.find(v => v.name === expr.object.name);
+        const g = this.globalVars.find(v => v.name === object.name);
         if (g) t = g.type;
       }
     }
