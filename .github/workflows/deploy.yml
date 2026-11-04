@@ -128,6 +128,12 @@ jobs:
             ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
             "mkdir -p ${VPS_DEPLOY_ROOT}/laravel ${VPS_DEPLOY_ROOT}/public_html"
 
+      - name: Debug VPS access
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
+            'whoami; id; ls -ld /var/www/z80lab.amtech-service.com/laravel; touch /var/www/z80lab.amtech-service.com/laravel/.t && echo WRITE_OK && rm /var/www/z80lab.amtech-service.com/laravel/.t'
+      
       # 7. rsyncでLaravel本体をデプロイ
       - name: Deploy Laravel to VPS
         run: |
