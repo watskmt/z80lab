@@ -452,12 +452,22 @@ export class Z80CodeGen {
         }
       }
     } else if (target.kind === 'UnaryExpr' && target.op === '*') {
-      // *ptr = HL
+      // *ptr = value in HL (Z80 has no LD (DE),HL — store byte-wise)
+      const pointee = target.type ?? { kind: 'int', signed: true };
       this.emit('\tPUSH\tHL');
       this.genExpr(target.operand);
       this.emit('\tEX\tDE, HL');
       this.emit('\tPOP\tHL');
-      this.emit('\tLD\t(DE), HL');
+      if (AST.typeSize(pointee) === 1) {
+        this.emit('\tLD\tA, L');
+        this.emit('\tLD\t(DE), A');
+      } else {
+        this.emit('\tLD\tA, L');
+        this.emit('\tLD\t(DE), A');
+        this.emit('\tINC\tDE');
+        this.emit('\tLD\tA, H');
+        this.emit('\tLD\t(DE), A');
+      }
     } else if (target.kind === 'IndexExpr') {
       // arr[i] = HL
       this.emit('\tPUSH\tHL');
@@ -576,7 +586,21 @@ export class Z80CodeGen {
           break;
         }
         case '~': this.genExpr(expr.operand); this.emit('\tLD\tA, H'); this.emit('\tCPL'); this.emit('\tLD\tH, A'); this.emit('\tLD\tA, L'); this.emit('\tCPL'); this.emit('\tLD\tL, A'); break;
-        case '*': this.genExpr(expr.operand); this.emit('\tLD\tA, (HL)'); this.emit('\tLD\tH, 0'); this.emit('\tLD\tL, A'); break;
+        case '*': {
+          const pointee = expr.type ?? { kind: 'int', signed: true };
+          this.genExpr(expr.operand);
+          if (AST.typeSize(pointee) === 1) {
+            this.emit('\tLD\tA, (HL)');
+            this.emit('\tLD\tH, 0');
+            this.emit('\tLD\tL, A');
+          } else {
+            this.emit('\tLD\tE, (HL)');
+            this.emit('\tINC\tHL');
+            this.emit('\tLD\tD, (HL)');
+            this.emit('\tEX\tDE, HL');
+          }
+          break;
+        }
         case '&': this.genAddr(expr.operand); break;
         case '++': this.genExpr(expr.operand); this.emit('\tINC\tHL'); this.storeToTarget(expr.operand); break;
         case '--': this.genExpr(expr.operand); this.emit('\tDEC\tHL'); this.storeToTarget(expr.operand); break;
