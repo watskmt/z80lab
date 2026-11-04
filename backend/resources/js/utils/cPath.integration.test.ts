@@ -66,6 +66,16 @@ int main() {
   return 1;
 }
 `,
+  pointer_local: `
+int main(void){
+    int a;
+    int *pA;
+    a = 10;
+    pA = &a;
+    *pA = 100;
+    return a;
+}
+`,
 };
 
 function compileAsm(src: string, name: string, origin = 0x0000) {
@@ -185,5 +195,15 @@ describe('c2z80 + loadAsmText', () => {
     expect(jp).toBeTruthy();
     expect(encodedTarget(jp!.addr, jp!.bytes)).toBe(r.labelMap._ret_0);
     expect(r.labelMap._ret_0).toBeGreaterThan(jp!.addr);
+  });
+
+  it('local int pointer: *pA = 100 assembles (no invalid LD (DE),HL)', () => {
+    const asm = compileAsm(SAMPLES.pointer_local, 'sample2.c');
+    expect(asm).toMatch(/LD\s+\(DE\),\s*A/);
+    expect(asm).toMatch(/INC\s+DE/);
+    expect(asm).not.toMatch(/LD\s+\(DE\),\s*HL/);
+    const r = assembleProgram(asm);
+    expect(r.errorLines, r.errorLines.join('\n')).toEqual([]);
+    expectJumpsMatch(r);
   });
 });
