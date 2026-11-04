@@ -1,9 +1,8 @@
 name: Build and Deploy to CoreServer V2
 
+# CoreServer への自動デプロイは無効。必要なときだけ Actions から手動実行 (workflow_dispatch)。
 on:
-  push:
-    branches:
-      - master
+  workflow_dispatch:
 
 jobs:
   test:
