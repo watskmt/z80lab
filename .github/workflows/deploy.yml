@@ -168,13 +168,27 @@ jobs:
             # storageディレクトリの作成（存在しない場合のみ）
             mkdir -p storage/framework/views storage/framework/sessions storage/framework/cache storage/logs bootstrap/cache
 
-            # SELinuxコンテキスト設定（Rocky Linux: httpd が書き込めるよう設定）
-            sudo restorecon -R storage bootstrap/cache database
+            # Rocky VPS: php-fpm は nginx ユーザー。SELinux 既定の httpd_sys_content_t では SQLite/storage へ書き込めない
+            sudo chown -R nginx:nginx storage bootstrap/cache database
+            sudo find storage bootstrap/cache database -type d -exec chmod 775 {} \;
+            sudo find storage bootstrap/cache database -type f -exec chmod 664 {} \;
 
-            # SQLiteファイルが存在しない場合のみ作成
+            if ! command -v semanage >/dev/null 2>&1; then
+              sudo dnf install -y policycoreutils-python-utils || true
+            fi
+            for ctx in \
+              "${VPS_DEPLOY_ROOT}/laravel/database(/.*)?" \
+              "${VPS_DEPLOY_ROOT}/laravel/storage(/.*)?" \
+              "${VPS_DEPLOY_ROOT}/laravel/bootstrap/cache(/.*)?"; do
+              sudo semanage fcontext -a -t httpd_sys_rw_content_t "\$ctx" 2>/dev/null || \
+                sudo semanage fcontext -m -t httpd_sys_rw_content_t "\$ctx"
+            done
+            sudo restorecon -Rv storage bootstrap/cache database
+
+            # SQLiteファイルが存在しない場合のみ作成（nginx 所有で作成）
             if [ ! -f database/database.sqlite ]; then
-              touch database/database.sqlite
-              chmod 664 database/database.sqlite
+              sudo -u nginx touch database/database.sqlite
+              sudo chmod 664 database/database.sqlite
             fi
 
             # Laravelキャッシュクリア・最適化
